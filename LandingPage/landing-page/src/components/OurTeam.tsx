@@ -55,7 +55,7 @@ const teamMembers = [
         id: 6,
         name: "Sehandu Abeyratne",
         role: "Systems Analyst",
-        image: "/team/sehandu.jpg",
+        image: "/team/sehandu.jpeg",
         quote: "Created the Rich Picture Diagram and prioritized requirements. Collaborated on risk mitigation strategies.",
         linkedin: "https://www.linkedin.com/in/your-profile",
         github: "https://github.com/your-username"
