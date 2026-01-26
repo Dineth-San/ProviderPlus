@@ -1,6 +1,10 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+"""
+THIS FILE HAS ALL THE RESPONSE MODELS RELATED TO THE CHATBOT
+"""
+
 class SearchKeywords(BaseModel):
     keywords: List[str]
     needs_clarification: bool = False
@@ -8,6 +12,7 @@ class SearchKeywords(BaseModel):
 
 class SearchQuery(BaseModel):
     user_text: str
+    context_history: Optional[str] = None
 
 class SearchFilter(BaseModel):
     category: str

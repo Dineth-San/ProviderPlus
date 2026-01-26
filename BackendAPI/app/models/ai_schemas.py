@@ -1,6 +1,11 @@
 from pydantic import BaseModel
 from typing import Optional
 
+"""
+THIS FILE HAS ALL THE RESPONSE MODELS THAT ARE RELATED TO THE AI
+(OTHER THAN THE CHATBOT) 
+"""
+
 # --- 1. Appointment Analysis Models ---
 class AppointmentDetails(BaseModel):
     found: bool

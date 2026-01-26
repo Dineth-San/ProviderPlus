@@ -1,22 +1,16 @@
-import os
-from google import genai
-from dotenv import load_dotenv
+from ..core.gemini_config import client, MODEL_NAME
 from ..models.ai_schemas import AppointmentDetails, UpdatedSummary
 from datetime import datetime
 
-# 1. Setup Gemini (Same as your chat_agent.py)
-load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
-client = genai.Client(api_key=api_key)
 
-
+# this function summarizes chats to create booking details
 def extract_appointment_details(chat_history: str) -> AppointmentDetails:
-    # 2. Get today's date dynamically
+    # Get today's date dynamically. this is to give GEMINI more context about the situation
     today_str = datetime.now().strftime("%Y-%m-%d (%A)")
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash-lite",
+            model=MODEL_NAME,
             contents=f"Analyze this chat history:\n{chat_history}",
             config={
                 "system_instruction": f"""
@@ -48,12 +42,13 @@ def extract_appointment_details(chat_history: str) -> AppointmentDetails:
         print(f"AI Error: {e}")
         return AppointmentDetails(found=False, summary="Error analyzing chat.")
 
-# --- FUNCTION B: SUMMARIZE REVIEWS ---
-# --- FUNCTION B: SUMMARIZE REVIEWS ---
+
+
+# this function updates profile summaries based on new reviews given to providers
 def generate_review_summary(current_summary: str, new_review: str) -> UpdatedSummary:
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash-lite",
+            model=MODEL_NAME,
             contents=f"Current Summary: {current_summary}\nNew Review: {new_review}",
             config={
                 "system_instruction": """

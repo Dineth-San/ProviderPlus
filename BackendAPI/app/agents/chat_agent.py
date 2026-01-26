@@ -1,20 +1,13 @@
-import os
-from google import genai
-from dotenv import load_dotenv
-from ..models.request_models import AgentResponse, SearchFilter
-from ..data.categories import VALID_CATEGORIES
+from ..core.gemini_config import client, MODEL_NAME
+from ..models.request_models import AgentResponse
 
-load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
-client = genai.Client(api_key=api_key)
+# this is the function to have conversations with gemini
+def get_chat_response(user_message: str, valid_categories: list[str]) -> AgentResponse:
 
-
-def get_chat_response(user_message: str) -> AgentResponse:
-
-    categories_str = str(VALID_CATEGORIES)
+    categories_str = ", ".join(valid_categories)
     try:
         response = client.models.generate_content(
-            model = "gemini-2.0-flash-lite",
+            model = MODEL_NAME,
             contents = f"User message: {user_message}",
             config = {
                 "system_instruction": f"""
@@ -25,14 +18,29 @@ def get_chat_response(user_message: str) -> AgentResponse:
                 RULE A: REPLY TO USER
                 - IMPORTANT - Reply in the SAME language/script the user used. 
                 - Example: User says "Mata...", you say "Hari, mama..."
-
+                
+                KEYWORD PROTOCOL (SMART SEARCH):
+                - Do NOT just copy the user's exact word.
+                - EXPAND the keywords to include:
+                  1. The Exact Word (e.g., "Rewire")
+                  2. The Root Noun/Verb (e.g., "Wiring")
+                  3. The Broad Category (e.g., "Electrical")
+                  
+                - Example 1: User "Rewire house" -> Keywords ["Rewiring", "Wiring", "Electrical"]
+                - Example 2: User "Tap broken"   -> Keywords ["Plumbing", "Leak"]
+                - Example 3: User "Clean sofa"   -> Keywords ["Sofa", "Cleaning"]
+                
                 RULE B: DATA TRANSLATION (Internal Search)
                 - The 'category' and 'keywords' MUST ALWAYS BE IN ENGLISH.
                 - Never output Sinhala or Singlish in the 'keywords' list.
                 - Example: Input "Wadu baas" -> Keywords ["Carpenter", "Woodwork"] (NOT "Wadu baas").
                 
                 VALID CATEGORIES LIST:
-                {categories_str}   <--- DYNAMICALLY INJECTED HERE
+                {categories_str}
+                EMPTY DATA PROTOCOL:
+                If the above list is empty, you must politely state in the user reply that the servers are currently 
+                offline, so you cant search for providers right now. Do not invent or hallucinate categories if the 
+                list is empty
 
                 ### 2. MAPPING LOGIC
                 - "Jayamangala Gatha" / "Choir" / "Magician" / "DJ" -> Map to 'Musicians' (or closest Entertainment category)
@@ -46,6 +54,8 @@ def get_chat_response(user_message: str) -> AgentResponse:
                 1. Do NOT map it to a random category.
                 2. Do NOT create a search filter for it.
                 3. MUST mention in 'reply_to_user' that this specific service is unavailable.
+                4. If there is not enough context to determine service categories, mention in 'reply_to_user' to 
+                clarify the service or give more context
                 
                 ### 3. THE DECISION TREE
                 SCENARIO A: VAGUE REQUEST ("I need help", "Party")
@@ -70,14 +80,14 @@ def get_chat_response(user_message: str) -> AgentResponse:
                 "response_schema": AgentResponse
             }
         )
-
+        # return the response if no error occurred
         return response.parsed
 
-
+    # error handling
     except Exception as e:
         print(f"Chat Agent Error: {e}")
         return AgentResponse(
-            reply_to_user="I am having trouble connecting.",
+            reply_to_user="An unexpected error occurred. Please try again.",
             needs_clarification=False,
             search_filters=[]
         )

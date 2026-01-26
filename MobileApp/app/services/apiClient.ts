@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 // --- CONFIGURATION ---
 // 1. REPLACE THIS with the IP you found in Step 1
 // This is safe for dev because it's a local address.
-const LAPTOP_IP = '192.168.1.3'; // <--- CHANGE THIS!
+const LAPTOP_IP = '10.31.18.97'; //
 
 // 2. LOGIC:
 // - Android Emulator uses '10.0.2.2' (special alias for host loopback).
