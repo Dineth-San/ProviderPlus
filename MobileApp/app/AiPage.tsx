@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import { sendChatMessage } from './services/chatService';
 
 // --- TYPES ---
 interface Message {
@@ -32,19 +33,14 @@ const App = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const flatListRef = useRef<FlatList>(null);
 
-    const plumberData = [
-        { id: 'p1', name: "Nimal's Plumbing", rating: 5 },
-        { id: 'p2', name: "Saman's Plumbing", rating: 4 },
-    ];
-
     const suggestions = [
-        "Find a Top Rated Plumber",
+        "Find a Top Rated provider",
         "Fix a leaking tap",
         "Emergency pipe repair"
     ];
 
     // --- HANDLERS ---
-    const handleSend = (text: string) => {
+    const handleSend = async (text: string) => {
         if (!text.trim()) return;
 
         // 1. Add User Message with animation
@@ -60,38 +56,57 @@ const App = () => {
         // Auto-scroll after user message
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
 
-        // 2. Show typing indicator
-        setTimeout(() => {
-            const typingMsg: Message = {
-                id: 'typing-' + Date.now(),
-                sender: 'bot',
-                type: 'typing'
-            };
-            setMessages(prev => [...prev, typingMsg]);
-            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-        }, 600);
+        // 2. Show "Typing..." while we wait for python
+        const typingId = 'typing-' + Date.now();
+        const typingMsg: Message = {
+            id: typingId,
+            sender: 'bot',
+            type: 'typing'
+        };
+        setMessages(prev => [...prev, typingMsg]);
+        setTimeout(() => flatListRef.current?.scrollToEnd({animated: true}), 100);
 
-        // 3. Remove typing, add bot response
-        setTimeout(() => {
-            setMessages(prev => prev.filter(m => m.type !== 'typing'));
+        try{
+            // 3. call the python backend - the bridge
+            const response = await sendChatMessage(text);
 
+            // remove typing indicator
+            setMessages(prev => prev.filter(m => m.id !== typingId));
+
+            // 4. create the bot's text message from python's reply
             const botResponse: Message = {
                 id: (Date.now() + 1).toString(),
-                text: "I found some top-rated plumbers near you:",
+                text: response.ai_reply,
                 sender: 'bot',
                 type: 'text'
             };
 
-            const cardResults: Message = {
-                id: (Date.now() + 2).toString(),
-                sender: 'bot',
-                type: 'cards',
-                data: plumberData
-            };
+            const newMessages = [botResponse];
 
-            setMessages(prev => [...prev, botResponse, cardResults]);
-            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 200);
-        }, 2000);
+            // if python sent 'providers', show the cards
+            // this maps provider list to the frontend
+            if(response.providers && response.providers.length > 0){
+                const cardResults: Message = {
+                    id: (Date.now() + 2).toString(),
+                    sender: 'bot',
+                    type: 'cards',
+                    data: response.providers
+                };
+                newMessages.push(cardResults);
+            }
+            setMessages(prev => [...prev, ...newMessages]);
+        }
+        catch(error){
+            setMessages(prev => prev.filter(m => m.id !== typingId));
+            const errorMsg: Message = {
+                id: Date.now().toString(),
+                text: "I'm having trouble connecting to the server. Please check your internet.",
+                sender: 'bot',
+                type: 'text'
+            };
+            setMessages(prev => [...prev, errorMsg]);
+        }
+        setTimeout(() => flatListRef.current?.scrollToEnd({animated: true}), 200);
     };
 
     return (
@@ -122,7 +137,7 @@ const App = () => {
                     ListEmptyComponent={() => (
                         <View style={styles.emptyContainer}>
                             <Image source={require('../assets/images/provider-logo.png')} style={styles.largeLogo} />
-                            <Text style={styles.welcomeTitle}>Hello! I'm Servy</Text>
+                            <Text style={styles.welcomeTitle}>Hello! Im Servy</Text>
                             <Text style={styles.welcomeSub}>What service do you need today?</Text>
                             <View style={styles.suggestionGrid}>
                                 {suggestions.map((item, index) => (
@@ -271,15 +286,15 @@ const AnimatedCardList = ({ data }: { data: any[] | undefined }) => {
 
     return (
         <View>
-            {data.map((plumber, index) => (
-                <AnimatedCard key={plumber.id} plumber={plumber} index={index} />
+            {data.map((provider, index) => (
+                <AnimatedCard key={provider.id} provider={provider} index={index} />
             ))}
         </View>
     );
 };
 
 // Individual Animated Card Component
-const AnimatedCard = ({ plumber, index }: { plumber: any; index: number }) => {
+const AnimatedCard = ({ provider, index }: { provider: any; index: number }) => {
     const scaleAnim = useRef(new Animated.Value(0.8)).current;
     const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -315,11 +330,13 @@ const AnimatedCard = ({ plumber, index }: { plumber: any; index: number }) => {
             <BlurView intensity={30} tint="light" style={styles.glassCard}>
                 <Image source={require('../assets/images/8fd666c5ddf277987fa36fc615f6f73a3587c900.jpg')} style={styles.avatar} />
                 <View style={styles.cardInfo}>
-                    <Text style={styles.plumberName}>{plumber.name}</Text>
-                    <Text style={styles.rating}>⭐⭐⭐⭐⭐</Text>
+                    <Text style={styles.providerName}>{provider.name}</Text>
+                    <Text style={styles.rating}>
+                        {"⭐".repeat(Math.round(provider.rating || 5))}
+                    </Text>
                     <TouchableOpacity
                         style={styles.bookBtnContainer}
-                        onPress={() => Alert.alert("Booking Confirmed", `Request sent to ${plumber.name}`)}
+                        onPress={() => Alert.alert("Booking Confirmed", `Request sent to ${provider.name}`)}
                         activeOpacity={0.8}
                     >
                         <LinearGradient colors={['#E440FF', '#5A1F63']} style={styles.bookBtnGradient}>
@@ -354,7 +371,7 @@ const styles = StyleSheet.create({
     glassCard: { flexDirection: 'row', padding: 15, backgroundColor: 'rgba(255, 255, 255, 0.2)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.3)' },
     avatar: { width: 80, height: 80, borderRadius: 12 },
     cardInfo: { marginLeft: 15, flex: 1, justifyContent: 'center' },
-    plumberName: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+    providerName: { color: 'white', fontWeight: 'bold', fontSize: 16 },
     rating: { fontSize: 14, marginTop: 4 },
     bookBtnContainer: { alignSelf: 'flex-end', marginTop: 10, borderRadius: 20, overflow: 'hidden' },
     bookBtnGradient: { paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20 },

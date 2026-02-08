@@ -1,27 +1,28 @@
-import apiClient from './apiClient';
+import apiClient from './apiClient'
 
-// Define the shape of the response we expect from Python
-export interface ChatResponse {
+interface ChatResponse{
     ai_reply: string;
     providers: any[];
-
-    // --- ADD THESE NEW FIELDS ---
     needs_clarification: boolean;
-    clarification_question?: string; // '?' means it might be null
-    search_filters?: any[];          // Useful to console.log this for the Viva!
+    clarification_question: string | null;
+    search_debug: any;
 }
 
-export const ChatService = {
-    sendMessage: async (userText: string): Promise<ChatResponse> => {
-        try {
-            // We only need the endpoint path here
-            const response = await apiClient.post<ChatResponse>('/ai-chat/chat', {
-                user_text: userText
-            });
-            return response.data;
-        } catch (error) {
-            console.error("❌ API Error:", error);
-            throw error;
-        }
+
+export const sendChatMessage = async (
+    userText: string, history: string | null = null
+): Promise<ChatResponse> => {
+    try{
+        console.log("sending message");
+        const response = await apiClient.post('/ai-chat', {
+            user_text: userText,
+            context_history: history,
+        });
+        console.log("message received");
+        return response.data;
     }
-};
+    catch(error){
+        console.error("Bridge Error: ", error);
+        throw error;
+    }
+}

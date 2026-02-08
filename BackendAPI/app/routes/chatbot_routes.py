@@ -5,7 +5,7 @@ from ..services.search_service import specialized_providers, get_all_categories
 
 router = APIRouter()
 
-@router.post("/chat")
+@router.post("/")
 async def chat_with_ai(query: SearchQuery):
 
     # this takes into consideration whether a chat history existed
