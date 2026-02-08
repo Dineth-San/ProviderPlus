@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Image, ScrollView, StyleSheet } from 'react-native';
+import {View, Text, TextInput, Pressable, Image, ScrollView, StyleSheet, ActivityIndicator} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,11 +9,27 @@ import { Dropdown } from 'react-native-element-dropdown';
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
+type UserRole = 'user' | 'provider';
+type Language = 'ENG' | 'සිං';
+
+
 const UserSignUp1 = ({ navigation }: any) => {
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const [dob, setDob] = useState("");
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [date, setDate] = useState(new Date());
+
+    const [language, setLanguage] = useState<Language>('ENG');
+    const [isTranslating, setIsTranslating] = useState<boolean>(false);
+
+    const [strings, setStrings] = useState({
+        user: "User",
+        provider: "Provider",
+
+    });
+
+
+    const [userRole, setUserRole] = useState<UserRole>("user");
 
     // State for all fields
     const [firstName, setFirstName] = useState("");
@@ -242,6 +258,38 @@ const UserSignUp1 = ({ navigation }: any) => {
         <View style={globalStyles.mainContainer}>
             <LinearGradient colors={COLORS.userGradient} style={StyleSheet.absoluteFill} />
             <SafeAreaView style={globalStyles.safeArea}>
+
+
+                <View style={styles.headerToggleLang}>
+                    <View style={styles.langToggleContainer}>
+                        <View style={styles.toggleBackground}>
+                            <Pressable style={styles.langButton} onPress={() => setLanguage('ENG')}>
+                                {language === 'ENG' && <LinearGradient colors={['#E440FF', '#5A1F63']} style={[StyleSheet.absoluteFill, { borderRadius: 15 }]} />}
+                                <Text style={[styles.langText, language === 'ENG' && styles.activeToggleText]}>ENG</Text>
+                            </Pressable>
+                            <Pressable style={styles.langButton} onPress={() => setLanguage('සිං')}>
+                                {language === 'සිං' && <LinearGradient colors={['#E440FF', '#5A1F63']} style={[StyleSheet.absoluteFill, { borderRadius: 15 }]} />}
+                                <Text style={[styles.langText, language === 'සිං' && styles.activeToggleText]}>සිං</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                    {isTranslating && <ActivityIndicator size="small" color="#FFF" style={{ marginLeft: 10 }} />}
+                </View>
+
+                {/* ROLE TOGGLE style) */}
+                <View style={styles.inlineRoleToggle}>
+                    <View style={styles.toggleBackground}>
+                        <Pressable style={styles.toggleButton} onPress={() => setUserRole('user')}>
+                            {userRole === 'user' && <LinearGradient colors={['#00ADF5', '#0072FF']} style={[StyleSheet.absoluteFill, { borderRadius: 25 }]} />}
+                            <Text style={[styles.toggleText, userRole === 'user' && styles.activeToggleText]}>{strings.user}</Text>
+                        </Pressable>
+                        <Pressable style={styles.toggleButton} onPress={() => setUserRole('provider')}>
+                            {userRole === 'provider' && <LinearGradient colors={['#1086b5', '#022373']} style={[StyleSheet.absoluteFill, { borderRadius: 25 }]} />}
+                            <Text style={[styles.toggleText, userRole === 'provider' && styles.activeToggleText]}>{strings.provider}</Text>
+                        </Pressable>
+                    </View>
+                </View>
+
                 <View style={globalStyles.stepContainer}>
                     <View style={globalStyles.stepWrapper}>
                         <Text style={globalStyles.stepText}>Step 1</Text>
@@ -448,6 +496,37 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginVertical: 20,
     },
+    headerToggleLang: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", marginTop: 10, marginBottom: 20 },
+
+    langToggleContainer: {
+        width: 104,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: "#FFF",
+        overflow: "hidden",
+        padding: 3,
+        marginBottom:20,
+       // alignItems: 'flex-end',
+    },
+    toggleBackground: { flex: 1, flexDirection: "row" },
+    langButton: { flex: 1, justifyContent: "center", alignItems: "center", borderRadius: 15 },
+    langText: { fontSize: 12, fontWeight: "bold", color: "#888" },
+    activeToggleText: { color: "#FFF" },
+
+    inlineRoleToggle: {
+        alignSelf: "center",
+        width: 180,
+        height: 35,
+        borderRadius: 25,
+        backgroundColor: "#FFF",
+        overflow: "hidden",
+        padding: 2,
+        marginBottom:10
+
+    },
+    toggleButton: { flex: 1, justifyContent: "center", alignItems: "center", borderRadius: 25},
+    toggleText: { fontSize: 14, fontWeight: "bold", color: "#888", zIndex: 1 },
+
     imageCircle: {
         width: 110,
         height: 110,
@@ -524,7 +603,7 @@ const styles = StyleSheet.create({
         tintColor: '#FFF',
     },
     errorText: {
-        color: '#FF6B6B',
+        color: '#FF4B4B',
         fontSize: 12,
         marginTop: 5,
         marginLeft: 20,
