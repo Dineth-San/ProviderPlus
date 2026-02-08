@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "expo": "^54.0.33",
+    "react-native-image-crop-picker": "^0.51.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
+  }
+}

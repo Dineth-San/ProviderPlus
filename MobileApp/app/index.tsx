@@ -1,194 +1,99 @@
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    StyleSheet,
-    SafeAreaView,
-    KeyboardAvoidingView,
-    Platform,
-    Alert
-} from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, Image, StyleSheet, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 
-export default function LoginScreen() {
-    const router = useRouter();
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+// Get screen dimensions to ensure full coverage
+const { width, height } = Dimensions.get('window');
 
-    const handleLogin = () => {
-        // For Viva Demo: Just navigate to the main app
-        // You can add "if (email === ...)" logic here if you want
-        router.replace('/chatbot');
-    };
+const SplashScreen = () => {
+  const router = useRouter();
 
-    return (
-        <SafeAreaView style={styles.container}>
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.keyboardView}
-            >
+  useEffect(() => {
+    // This timer simulates the loading process.
+    // After 3 seconds (3000ms), it navigates to your Home screen.
+    const timer = setTimeout(() => {
+      // REPLACE '(tabs)' with the actual path to your home screen if it's different.
+      // In Expo Router, usually your main app lives in (tabs) or a 'home' route.
+      router.replace('/(tabs)');
+    }, 3000);
 
-                {/* 1. LOGO / BRANDING AREA */}
-                <View style={styles.headerContainer}>
-                    <View style={styles.logoBox}>
-                        <Text style={styles.logoText}>P+</Text>
-                    </View>
-                    <Text style={styles.welcomeText}>Welcome Back!</Text>
-                    <Text style={styles.subText}>Sign in to find your perfect provider</Text>
-                </View>
+    return () => clearTimeout(timer); // Cleanup the timer if the component unmounts
+  }, []);
 
-                {/* 2. INPUT FIELDS */}
-                <View style={styles.formContainer}>
-                    <Text style={styles.inputLabel}>Email Address</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="hello@providerplus.lk"
-                        placeholderTextColor="#aaa"
-                        value={email}
-                        onChangeText={setEmail}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                    />
+  return (
+    <LinearGradient
+      // The colors array creates the gradient from Top (Cyan-ish) to Bottom (Dark Blue)
+      // Adjust these hex codes to match your Figma exact values
+      colors={['#00C6FF', '#0072FF']}
+      style={styles.container}
+    >
+      {/* Top Section: Main Text */}
+      <View style={styles.textContainer}>
+        <Text style={styles.titleText}>FIND THE BEST.</Text>
+        <Text style={styles.titleText}>FOR YOU.</Text>
+      </View>
 
-                    <Text style={styles.inputLabel}>Password</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Enter your password"
-                        placeholderTextColor="#aaa"
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                    />
+      {/* Middle Section: Logo */}
+      <View style={styles.logoContainer}>
+        {/* Make sure the filename matches exactly what you put in the assets folder */}
+        <Image
+          source={require('../assets/images/provider-logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </View>
 
-                    {/* Forgot Password Link */}
-                    <TouchableOpacity onPress={() => Alert.alert("Reset", "Reset link sent!")}>
-                        <Text style={styles.forgotText}>Forgot Password?</Text>
-                    </TouchableOpacity>
+      {/* Bottom Section: Footer */}
+      <View style={styles.footerContainer}>
+        <Text style={styles.footerText}>ALL RIGHT RESERVED. 2025</Text>
+        <Text style={styles.footerText}>PROVIDER+</Text>
+      </View>
+    </LinearGradient>
+  );
+};
 
-                    {/* 3. LOGIN BUTTON */}
-                    <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                        <Text style={styles.loginButtonText}>Log In</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* 4. FOOTER */}
-                <View style={styles.footerContainer}>
-                    <Text style={styles.footerText}>Dont have an account? </Text>
-                    <TouchableOpacity onPress={() => Alert.alert("Sign Up", "Navigate to Register")}>
-                        <Text style={styles.signupText}>Sign Up</Text>
-                    </TouchableOpacity>
-                </View>
-
-            </KeyboardAvoidingView>
-        </SafeAreaView>
-    );
-}
-
-// --- STYLES ---
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
-    keyboardView: {
-        flex: 1,
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-    },
-    // Header
-    headerContainer: {
-        alignItems: 'center',
-        marginBottom: 40,
-    },
-    logoBox: {
-        width: 80,
-        height: 80,
-        backgroundColor: '#007AFF', // Brand Blue
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 20,
-        shadowColor: "#007AFF",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    logoText: {
-        color: '#fff',
-        fontSize: 32,
-        fontWeight: 'bold',
-    },
-    welcomeText: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 8,
-    },
-    subText: {
-        fontSize: 16,
-        color: '#666',
-    },
-    // Form
-    formContainer: {
-        width: '100%',
-    },
-    inputLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
-        marginLeft: 4,
-    },
-    input: {
-        backgroundColor: '#F5F5F5',
-        height: 50,
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        marginBottom: 20,
-        fontSize: 16,
-        color: '#333',
-        borderWidth: 1,
-        borderColor: '#E0E0E0',
-    },
-    forgotText: {
-        textAlign: 'right',
-        color: '#007AFF',
-        fontWeight: '600',
-        marginBottom: 30,
-    },
-    loginButton: {
-        backgroundColor: '#007AFF',
-        height: 56,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: "#007AFF",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    loginButtonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    // Footer
-    footerContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        marginTop: 30,
-    },
-    footerText: {
-        color: '#666',
-        fontSize: 15,
-    },
-    signupText: {
-        color: '#007AFF',
-        fontWeight: 'bold',
-        fontSize: 15,
-    },
+  container: {
+    flex: 1,
+    width: width,
+    height: height,
+    justifyContent: 'space-between', // Distributes space between Top, Middle, Bottom
+    alignItems: 'center',
+    paddingVertical: 50, // Adds breathing room at top and bottom
+  },
+  textContainer: {
+    marginTop: 80, // Pushes text down from the top status bar
+    alignItems: 'center',
+  },
+  titleText: {
+    fontSize: 24,
+    fontWeight: '700', // Bold
+    color: '#FFFFFF',
+    letterSpacing: 1.5,
+    marginBottom: 5,
+  },
+  logoContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    // This helps center the logo visually in the remaining space
+    flexGrow: 1,
+  },
+  logo: {
+    width: 120, // Adjust based on how big you want the P logo
+    height: 120,
+  },
+  footerContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    opacity: 0.8, // Slightly transparent for a premium look
+    fontWeight: '500',
+    marginTop: 2,
+  },
 });
+
+export default SplashScreen;

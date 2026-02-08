@@ -131,7 +131,7 @@ const UserLogin: React.FC = () => {
 
                         {/* LOGO (style) */}
                         <View style={styles.logoContainer}>
-                            <Image source={require('../assets/images/provider-logo.png')} style={styles.mainLogo} resizeMode="contain" />
+                            <Image source={require('../../assets/images/provider-logo.png')} style={styles.mainLogo} resizeMode="contain" />
                             <Text style={styles.welcomeText}>{strings.login}</Text>
                         </View>
 
