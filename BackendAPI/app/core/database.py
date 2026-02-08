@@ -1,9 +1,12 @@
 import os
+import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 from dotenv import load_dotenv
-from ..models.provider_model import Provider
 from pymongo.errors import ServerSelectionTimeoutError
+
+from ..models.provider_model import Provider
+from ..models.user_model import User
 
 # function that connects the app with MongoDB
 async def init_db():
@@ -17,7 +20,10 @@ async def init_db():
 
     try:
         # create the motor client
-        client = AsyncIOMotorClient(uri)
+        client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
+
+        # ping to check connection
+        await client.server_info()
 
         # select db name
         database = client.providerplus_db
@@ -26,7 +32,8 @@ async def init_db():
             database=database,
             document_models=[
                 # add the response models the database returns
-                Provider
+                Provider,
+                User
             ]
         )
     # handling relevant errors
