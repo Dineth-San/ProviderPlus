@@ -128,6 +128,8 @@ export default function HomeScreen() {
     return { opacity };
   });
 
+  // @ts-ignore
+  // @ts-ignore
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <LinearGradient colors={['#00C6FF', '#0072FF']} style={styles.container}>
@@ -231,7 +233,7 @@ export default function HomeScreen() {
                 {CATEGORIES.map((cat) => (
                   <TouchableOpacity key={cat.id} style={styles.card}>
                     <Text style={{ fontSize: 32 }}>{cat.icon}</Text>
-                    <Text style={styles.cardText}>{t.categories[cat.name]}</Text>
+                    <Text style={styles.cardText}>{t.categories[cat.name as keyof typeof TRANSLATIONS.en.categories]}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

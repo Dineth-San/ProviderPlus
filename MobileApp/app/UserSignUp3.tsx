@@ -3,7 +3,7 @@ import {View, Text, TextInput, Pressable, Image, ScrollView, StyleSheet, Activit
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { globalStyles, COLORS } from '@/app/UserSignUpStyles';
+import { globalStyles, COLORS } from '@/app/styles/UserSignUpStyles';
 
 type Language = 'ENG' | 'සිං';
 

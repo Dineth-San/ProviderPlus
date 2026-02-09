@@ -118,11 +118,11 @@ const App = () => {
                 <View style={styles.header}>
                     <BlurView intensity={30} tint="light" style={styles.headerContent}>
                         <TouchableOpacity style={styles.iconPlaceholder}>
-                            <Image source={require('../assets/images/36594908f7207cdd137f1131cad1f0c97379fb36.png')} style={styles.headerIcon} />
+                            <Image source={require('../assets/images/account.png')} style={styles.headerIcon} />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>Servy</Text>
                         <TouchableOpacity style={styles.iconPlaceholder}>
-                            <Image source={require('../assets/images/765ef90f7f1c09808be3832c621a6b7fa497fbcc.png')} style={styles.headerIcon} />
+                            <Image source={require('../assets/images/survy.png')} style={styles.headerIcon} />
                         </TouchableOpacity>
                     </BlurView>
                 </View>
