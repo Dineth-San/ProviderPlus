@@ -84,7 +84,7 @@ export default function HomeScreen() {
 
   // --- ANIMATION SETUP ---
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['15%', '75%'], []);
+  const snapPoints = useMemo(() => ['12%', '75%'], []);
   const animatedIndex = useSharedValue(0);
 
   // Track when the sheet is expanding to disable touches on toggle

@@ -1,91 +1,200 @@
-import React from 'react';
-import { Image, View, StyleSheet, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Tabs, useRouter } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
+import { Image, View, StyleSheet, Platform, Animated, TouchableOpacity, Text } from 'react-native';
+import { Tabs, useRouter, usePathname } from 'expo-router';
+import { BlurView } from 'expo-blur';
 
-// Solid frosted glass look — no blur needed, works everywhere
-const FrostyTabBarBackground = () => {
+const FrostyTabBarBackground = ({ borderRadius }: { borderRadius: any }) => {
   return (
-    <View style={[StyleSheet.absoluteFill, styles.glassContainer]}>
-      {/* Base: semi-transparent white */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]} />
-      {/* Top edge highlight for glass effect */}
-      <LinearGradient
-        colors={['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.05)']}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={[StyleSheet.absoluteFill]}
-      />
-    </View>
+    <BlurView
+      experimentalBlurMethod="dimezisBlurView"
+      intensity={25}
+      tint="light"
+      style={[StyleSheet.absoluteFill, { borderRadius: 24, overflow: 'hidden', backgroundColor: 'transparent' }]}
+    />
   );
 };
 
-export default function TabLayout() {
-  const router = useRouter();
+// ─── Custom Animated Tab Bar ─────────────────────────────────────────
+function AnimatedTabBar({ state, descriptors, navigation }: any) {
+  const pathname = usePathname();
+  const isHomePage = pathname === '/' || pathname === '/index';
+  const isDarkbgPage = pathname.includes('UserLogin') || pathname.includes('Alerts');
 
   const activeTintColor = '#0056D2';
-  const inactiveTintColor = 'rgba(0,0,0, 0.5)';
+  const inactiveTintColor = isDarkbgPage ? 'rgba(255,255,255, 0.6)' : 'rgba(0,0,0, 0.5)';
+
+  // Animation: 1 = home (full), 0 = floating (other pages)
+  const anim = useRef(new Animated.Value(isHomePage ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(anim, {
+      toValue: isHomePage ? 1 : 0,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 10,
+    }).start();
+  }, [isHomePage]);
+
+  // ── Interpolations ──
+  const animBottom = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [Platform.OS === 'ios' ? 20 : 22, -5],
+  });
+  const animLeft = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [9, 0],
+  });
+  const animRight = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [9, 0],
+  });
+  const animBorderRadius = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [24, 20],
+  });
+  const animHeight = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [
+      Platform.OS === 'ios' ? 72 : 68,
+      Platform.OS === 'ios' ? 90 : 80,
+    ],
+  });
+  const animBorderTopWidth = anim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 0, 1],
+  });
+
+  // Border color (not animated, changes instantly based on page)
+  const borderColor = isDarkbgPage ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.25)';
+
+  // Icon sources mapped by route name
+  const iconMap: Record<string, any> = {
+    index: require('../../assets/images/home.png'),
+    Survy: require('../../assets/images/survy.png'),
+    Alerts: require('../../assets/images/alerts.png'),
+    UserLogin: require('../../assets/images/account.png'),
+  };
+
+  const labelMap: Record<string, string> = {
+    index: 'HOME',
+    Survy: 'SURVY',
+    Alerts: 'ALERTS',
+    UserLogin: 'ACCOUNT',
+  };
+
+  return (
+    <Animated.View
+      style={[
+        styles.tabBarOuter,
+        {
+          bottom: animBottom,
+          left: animLeft,
+          right: animRight,
+          height: animHeight,
+          borderRadius: animBorderRadius,
+          borderTopWidth: animBorderTopWidth,
+          borderColor: borderColor,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 12,
+        },
+      ]}
+    >
+      {/* Blur background */}
+      <BlurView
+        experimentalBlurMethod="dimezisBlurView"
+        intensity={25}
+        tint="light"
+        style={[StyleSheet.absoluteFill, { overflow: 'hidden', backgroundColor: 'transparent' }]}
+      />
+
+      {/* Tab items */}
+      <View style={styles.tabRow}>
+        {state.routes.map((route: any, index: number) => {
+          const focused = state.index === index;
+          const tintColor = focused ? activeTintColor : inactiveTintColor;
+          const label = labelMap[route.name] || route.name;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+
+            if (!focused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            }
+          };
+
+          const onLongPress = () => {
+            navigation.emit({
+              type: 'tabLongPress',
+              target: route.key,
+            });
+          };
+
+          return (
+            <TouchableOpacity
+              key={route.key}
+              accessibilityRole="button"
+              accessibilityState={focused ? { selected: true } : {}}
+              onPress={onPress}
+              onLongPress={onLongPress}
+              style={styles.tabItem}
+              activeOpacity={0.7}
+            >
+              <Image
+                source={iconMap[route.name]}
+                style={{
+                  width: 24,
+                  height: 24,
+                  tintColor: tintColor,
+                }}
+                resizeMode="contain"
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  { color: tintColor },
+                ]}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </Animated.View>
+  );
+}
+
+// ─── Main Tab Layout ─────────────────────────────────────────────────
+export default function TabLayout() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const isDarkbgPage = pathname.includes('UserLogin') || pathname.includes('Alerts');
+
+  const activeTintColor = '#0056D2';
+  const inactiveTintColor = isDarkbgPage ? 'rgba(255,255,255, 0.6)' : 'rgba(0,0,0, 0.5)';
 
   return (
     <Tabs
+      tabBar={(props) => <AnimatedTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: activeTintColor,
-        tabBarInactiveTintColor: inactiveTintColor,
         headerShown: false,
-        tabBarShowLabel: true,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          marginTop: -4,
-          marginBottom: Platform.OS === 'ios' ? 6 : 10,
-          letterSpacing: 0.3,
-        },
-        tabBarStyle: {
-          position: 'absolute',
-          bottom: Platform.OS === 'ios' ? 20 : 22,
-          left: 16,
-          right: 16,
-          elevation: 0,
-          backgroundColor: 'rgba(255, 255, 255)',
-          borderTopWidth: 0,
-          borderRadius: 24,
-          height: Platform.OS === 'ios' ? 72 : 68,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 8 : 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.15,
-          shadowRadius: 12,
-          borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.3)',
-          overflow: 'hidden',
-        },
-        tabBarBackground: () => <FrostyTabBarBackground />,
-        tabBarItemStyle: {
-          paddingVertical: 4,
-        },
-      }}>
-
+      }}
+    >
       {/* 1. HOME */}
       <Tabs.Screen
         name="index"
         options={{
           title: 'HOME',
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/images/home.png')}
-              style={{
-                width: 24,
-                height: 24,
-                tintColor: focused ? activeTintColor : inactiveTintColor,
-              }}
-              resizeMode="contain"
-            />
-          ),
         }}
       />
 
-      {/* 2. SURVY → navigates to AiPage */}
+      {/* 2. SURVY */}
       <Tabs.Screen
         name="Survy"
         listeners={() => ({
@@ -96,17 +205,6 @@ export default function TabLayout() {
         })}
         options={{
           title: 'SURVY',
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/images/survy.png')}
-              style={{
-                width: 24,
-                height: 24,
-                tintColor: focused ? activeTintColor : inactiveTintColor,
-              }}
-              resizeMode="contain"
-            />
-          ),
         }}
       />
 
@@ -115,17 +213,6 @@ export default function TabLayout() {
         name="Alerts"
         options={{
           title: 'ALERTS',
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/images/alerts.png')}
-              style={{
-                width: 24,
-                height: 24,
-                tintColor: focused ? activeTintColor : inactiveTintColor,
-              }}
-              resizeMode="contain"
-            />
-          ),
         }}
       />
 
@@ -134,26 +221,41 @@ export default function TabLayout() {
         name="UserLogin"
         options={{
           title: 'ACCOUNT',
-          tabBarIcon: ({ focused }) => (
-            <Image
-              source={require('../../assets/images/account.png')}
-              style={{
-                width: 24,
-                height: 24,
-                tintColor: focused ? activeTintColor : inactiveTintColor,
-              }}
-              resizeMode="contain"
-            />
-          ),
         }}
       />
     </Tabs>
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  glassContainer: {
-    borderRadius: 24,
+  tabBarOuter: {
+    position: 'absolute',
+    elevation: 0,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
     overflow: 'hidden',
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 8 : -2,
+  },
+  tabRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingVertical: 4,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: -4,
+    marginBottom: Platform.OS === 'ios' ? 6 : 10,
+    letterSpacing: 0.3,
   },
 });

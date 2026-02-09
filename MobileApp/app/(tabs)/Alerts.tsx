@@ -152,9 +152,9 @@ export default function Alerts() {
               activeOpacity={0.8}
               onPress={() => markAsRead(notification.id)}
             >
-              <BlurView intensity={20} tint="light" style={styles.notificationCard}>
-                {/* Glass overlay effect */}
-                <View style={styles.glassOverlay} />
+              <BlurView intensity={30} experimentalBlurMethod="dimezisBlurView" tint="dark" style={styles.notificationCard}>
+
+
 
                 {/* Unread indicator */}
                 {!notification.read && (
@@ -253,10 +253,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     //elevation: 3,
-  },
-  glassOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   unreadIndicator: {
     position: 'absolute',
