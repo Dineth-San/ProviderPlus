@@ -1,59 +1,91 @@
 from ..models.provider_model import Provider
+from ..models.category_model import Category
 
 async def specialized_providers(category: str, keywords: list[str]):
-    """
-    :param category: the broad category of the provider
-    :param keywords: categories found by the AI after the initial prompt
-    :return: providers that perform the specialized task
-    """
-    # get all providers to a list
+    # 1. Fetch all providers with their Category Links populated
+    # We use the raw query workaround we learned earlier to ensure it works
     providers = await Provider.find_all().to_list()
+
+    # 2. Manual "Join" to get category names
+    # (Since we can't trust fetch_links right now)
     results = []
 
+    # Pre-fetch all categories for fast lookup
+    all_categories = await Category.find_all().to_list()
+    cat_map = {cat.id: cat.name for cat in all_categories}
+
     for provider_obj in providers:
+        # Resolve the category name
+        cat_name = "Unknown"
+        if provider_obj.category and provider_obj.category.ref.id in cat_map:
+            cat_name = cat_map[provider_obj.category.ref.id]
 
-        provider = provider_obj.dict()
-        p_category = provider.get("category", "Unknown")
-
-        if not is_match(category, p_category):
+        # 3. Use the RESOLVED name for matching
+        if not is_match(category, cat_name):
             continue
 
-        # a score is kept to give the user the most relevant provider for their job
+        # ... (Rest of your scoring logic remains the same) ...
+        provider = provider_obj.dict()
+
+        # Calculate Score
         score = 0
         provider_text = (
                 provider.get("description",  "") + " " +
                 " ".join(provider.get("tags", []))
         ).lower()
 
-        # this variable is used for debugging purposes
-        matched_keywords = []
         for kw in keywords:
             kw_clean = kw.lower()
             if (kw_clean in provider_text) or (provider_text in kw_clean):
                 score += 1
-                matched_keywords.append(kw)
 
-        if score > 0:
-            provider['id'] = str(provider_obj.id)
-            results.append({**provider, "score": score+10})
-        else:
-            provider['id'] = str(provider_obj.id)
-            results.append({**provider, "score": 1})
+        # Add result
+        # Note: We convert ID to string for JSON compatibility
+        provider['_id'] = str(provider_obj.id)
+        # Add the category name back so the AI can read it
+        provider['category'] = cat_name
+
+        results.append({**provider, "score": score + (10 if score > 0 else 1)})
 
     results.sort(key=lambda x: (x["score"], x.get("rating", 0)), reverse=True)
     return results
 
 
 # this function gets all the valid categories to give GEMINI a list of available provider categories
-async def get_all_categories() -> list[str]:
+async def get_category_names() -> list[str]:
+    """
+    Returns ONLY a list of strings: ['Plumber', 'Electrician', ...].
+    Uses MongoDB 'distinct' for maximum performance (no unused data transferred).
+    """
+    # This queries MongoDB directly for just the values in the "name" column
+    categories = await Category.find_all().to_list()
+    return [cat.name for cat in categories]
+
+
+async def get_all_categories() -> list[Category]:
     """
     Fetches all unique categories currently in the database.
-    Used to tell the AI what is available.
     """
-    # mongodb 'distinct' query gets all unique values for the field 'category'
-    all_providers = await Provider.find_all().to_list()
-    unique_categories = {p.category for p in all_providers}
-    return list(unique_categories)
+    return await Category.find_all().to_list()
+
+
+async def get_providers_by_slug(slug: str):
+    """
+    Finds a category by its slug, then returns all providers linked to it
+    """
+    category = await Category.find_one({"slug": slug})
+
+    if not category:
+        return []
+
+    providers = await Provider.find(
+        {"category.$id": category.id}
+    ).to_list()
+
+    for provider in providers:
+        provider.category = category
+
+    return providers
 
 
 # this is a logic function

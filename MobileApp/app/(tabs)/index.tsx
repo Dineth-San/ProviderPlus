@@ -1,12 +1,23 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity, Dimensions, Switch, Platform } from 'react-native';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TextInput,
+  TouchableOpacity,
+  Dimensions,
+  Switch,
+  Platform,
+  ActivityIndicator
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-
+import { fetchAllCategories, Category } from '../services/categoryService';
 const { width, height } = Dimensions.get('window');
 
 // Translation Object
@@ -57,28 +68,13 @@ const TRANSLATIONS = {
   }
 };
 
-// Category Data
-const CATEGORIES = [
-  { id: 1, name: 'DJ Artist', icon: '🎧' },
-  { id: 2, name: 'Event Planner', icon: '📅' },
-  { id: 3, name: 'Plumber', icon: '🔧' },
-  { id: 4, name: 'Beautician', icon: '💄' },
-  { id: 5, name: 'Electrician', icon: '⚡' },
-  { id: 6, name: 'Catering', icon: '🍽️' },
-  { id: 7, name: 'Photography', icon: '📷' },
-  { id: 8, name: 'LED Wall Provider', icon: '💡' },
-  { id: 9, name: 'Sound System', icon: '🔊' },
-  { id: 10, name: 'Decoration', icon: '🎨' },
-  { id: 11, name: 'Videography', icon: '🎥' },
-  { id: 12, name: 'Florist', icon: '🌸' },
-  { id: 13, name: 'Transportation', icon: '🚗' }
-];
-
 export default function HomeScreen() {
   const router = useRouter();
   const [isSinhala, setIsSinhala] = useState(false);
   const [isAiMode, setIsAiMode] = useState(false);
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
 
   const t = isSinhala ? TRANSLATIONS.si : TRANSLATIONS.en;
 
@@ -86,6 +82,23 @@ export default function HomeScreen() {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['12%', '75%'], []);
   const animatedIndex = useSharedValue(0);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        console.log("Fetching categories for Home Screen...");
+        // Call your new service!
+        const data = await fetchAllCategories();
+        setCategories(data);
+      } catch (error) {
+        console.error("Failed to load categories on Home Screen.");
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   // Track when the sheet is expanding to disable touches on toggle
   useAnimatedReaction(
@@ -229,14 +242,34 @@ export default function HomeScreen() {
             >
               <Text style={styles.sheetTitle}>{t.categoriesTitle}</Text>
 
-              <View style={styles.grid}>
-                {CATEGORIES.map((cat) => (
-                  <TouchableOpacity key={cat.id} style={styles.card}>
-                    <Text style={{ fontSize: 32 }}>{cat.icon}</Text>
-                    <Text style={styles.cardText}>{t.categories[cat.name as keyof typeof TRANSLATIONS.en.categories]}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {loadingCategories ? (
+                  <ActivityIndicator size="large" color="#0072FF" style={{ marginTop: 20 }} />
+              ) : (
+                  <View style={styles.grid}>
+                    {categories.map((cat) => (
+                        <TouchableOpacity
+                            key={cat._id} // Using MongoDB ID
+                            style={styles.card}
+                            onPress={() => {
+                              setSheetExpanded(false);
+                              router.push({
+                                pathname: '/SelectProvider',
+                                params: {
+                                  categorySlug: cat.slug,
+                                  categoryName: cat.name
+                                }
+                              });
+                            }}
+                        >
+                          <Text style={{ fontSize: 32 }}>{cat.icon}</Text>
+                          <Text style={styles.cardText}>
+                            {/* Try to use the translation file, otherwise fallback to the raw DB name */}
+                            {t.categories[cat.name as keyof typeof t.categories] || cat.name}
+                          </Text>
+                        </TouchableOpacity>
+                    ))}
+                  </View>
+              )}
 
               {/* Space for Bottom Tab Bar */}
               <View style={{ height: 100 }} />

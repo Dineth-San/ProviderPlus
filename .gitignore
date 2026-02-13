@@ -18,3 +18,7 @@ out/
 # --- Environment files ---
 .env
 .env.local
+
+# pycache
+__pycache__/
+*.pyc

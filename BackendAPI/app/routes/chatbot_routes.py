@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 from ..models.request_models import SearchQuery
 from ..agents.chat_agent import get_chat_response
-from ..services.search_service import specialized_providers, get_all_categories
+from ..services.search_service import specialized_providers, get_category_names
+from ..routes.provider_routes import get_category_names_endpoint
 
 router = APIRouter()
 
@@ -16,7 +17,7 @@ async def chat_with_ai(query: SearchQuery):
 
     # get all available categories of providers for context for GEMINI
     try:
-        all_categories = await get_all_categories()
+        all_categories = await get_category_names_endpoint()
     except Exception as e:
         print(f"Database connection failed {e}")
         all_categories = []

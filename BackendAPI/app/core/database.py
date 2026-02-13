@@ -7,6 +7,7 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 from ..models.provider_model import Provider
 from ..models.user_model import User
+from ..models.category_model import Category
 
 # function that connects the app with MongoDB
 async def init_db():
@@ -33,12 +34,13 @@ async def init_db():
             document_models=[
                 # add the response models the database returns
                 Provider,
-                User
+                User,
+                Category
             ]
         )
     # handling relevant errors
     except ServerSelectionTimeoutError as e:
-        print("DB connection error. Could not connect to thee MongoDB Cloud")
+        print("DB connection error. Could not connect to the MongoDB Cloud")
         print("Check your internet connection")
         raise e
 
