@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from typing import List
+from typing import List, Optional
 
 from ..models.category_model import Category
 from ..services.search_service import get_providers_by_slug, get_all_categories, get_category_names
@@ -7,13 +7,13 @@ from ..models.provider_model import Provider
 
 router = APIRouter()
 
-@router.get("/providers/category/{slug}", response_model=List[Provider])
-async def find_providers_by_category(slug: str):
+@router.get("/providers/category/{slug}")
+async def find_providers_by_category(slug: str, lat: Optional[float] = None, long: Optional[float] = None):
     """
     frontend: /providers/category/electrician
     backend: returns list of electricians
     """
-    providers = await get_providers_by_slug(slug)
+    providers = await get_providers_by_slug(slug, user_lat=lat, user_long=long)
 
     if not providers:
         raise HTTPException(status_code=404, detail="No providers found in this category")

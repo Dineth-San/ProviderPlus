@@ -1,5 +1,6 @@
 from ..models.provider_model import Provider
 from ..models.category_model import Category
+from typing import Optional
 
 async def specialized_providers(category: str, keywords: list[str]):
     # 1. Fetch all providers with their Category Links populated
@@ -55,7 +56,6 @@ async def specialized_providers(category: str, keywords: list[str]):
 async def get_category_names() -> list[str]:
     """
     Returns ONLY a list of strings: ['Plumber', 'Electrician', ...].
-    Uses MongoDB 'distinct' for maximum performance (no unused data transferred).
     """
     # This queries MongoDB directly for just the values in the "name" column
     categories = await Category.find_all().to_list()
@@ -69,7 +69,8 @@ async def get_all_categories() -> list[Category]:
     return await Category.find_all().to_list()
 
 
-async def get_providers_by_slug(slug: str):
+async def get_providers_by_slug(slug: str, user_lat: Optional[float] = None, user_long: Optional[float] = None,
+                                radius_km: float = 15.0):
     """
     Finds a category by its slug, then returns all providers linked to it
     """
@@ -78,9 +79,21 @@ async def get_providers_by_slug(slug: str):
     if not category:
         return []
 
-    providers = await Provider.find(
-        {"category.$id": category.id}
-    ).to_list()
+    query = {"category.$id": category.id}
+
+    if user_lat is not None and user_long is not None:
+        print(f"📍 Filtering: Finding providers within {radius_km}km of {user_lat}, {user_long}")
+        query["location"] = {
+            "$near": {
+                "$geometry": {
+                    "type": "Point",
+                    "coordinates": [user_long, user_lat]
+                },
+                "$maxDistance": radius_km * 1000
+            }
+        }
+
+    providers = await Provider.find(query).to_list()
 
     for provider in providers:
         provider.category = category

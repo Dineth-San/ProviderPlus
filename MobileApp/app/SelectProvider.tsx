@@ -16,8 +16,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import apiClient from './services/apiClient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Location from 'expo-location';
+// @ts-ignore
+import { fetchProvidersByCategory, Provider } from './services/providerService';
 
 const { width } = Dimensions.get('window');
 
@@ -75,33 +77,98 @@ const Card = ({ item }: { item: Provider }) => {
 export default function ProviderMarketplace() {
     const router = useRouter();
     // Get the params passed from the Home Screen
-    const { categorySlug, categoryName } = useLocalSearchParams();
+    const params = useLocalSearchParams();
+
+    // Ensure these are strings, not arrays
+    const categorySlug = Array.isArray(params.categorySlug)
+        ? params.categorySlug[0]
+        : params.categorySlug;
+    const categoryName = Array.isArray(params.categoryName)
+        ? params.categoryName[0]
+        : params.categoryName;
 
     const [providers, setProviders] = useState<Provider[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState("");
 
-    useEffect(() => {
-        if (categorySlug) {
-            fetchProviders();
-        }
-    }, [categorySlug]);
-
     const fetchProviders = async () => {
         setLoading(true);
+        let lat: number | undefined = undefined;
+        let long: number | undefined = undefined;
+
+        // SEPARATE location fetching from API call - location errors shouldn't block API
         try {
-            console.log(`📡 Fetching providers for category: ${categorySlug}`);
+            console.log("📡 1. Checking Location Services...");
+            const enabled = await Location.hasServicesEnabledAsync();
 
-            // USE API CLIENT HERE
-            // Base URL is already /api, so we add the rest:
-            const response = await apiClient.get(`/category-search/providers/category/${categorySlug}`);
+            if (enabled) {
+                console.log("📡 2. Checking Permissions...");
+                let { status } = await Location.requestForegroundPermissionsAsync();
 
-            console.log(`✅ Success! Found ${response.data.length} providers.`);
-            setProviders(response.data);
+                if (status === 'granted') {
+                    console.log("📡 3. Fetching Coordinates (5s Timeout)...");
+                    try {
+                        // 1. Create the Location Promise
+                        const locationPromise = Location.getCurrentPositionAsync({
+                            accuracy: Location.Accuracy.Balanced,
+                        });
+
+                        // 2. Create a Timeout Promise (Rejects after 5000ms)
+                        const timeoutPromise = new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error("Location request timed out")), 5000)
+                        );
+
+                        // 3. Race them!
+                        const location: any = await Promise.race([locationPromise, timeoutPromise]);
+
+                        lat = location.coords.latitude;
+                        long = location.coords.longitude;
+                        console.log(`📍 User found at: ${lat}, ${long}`);
+
+                    } catch (locError) {
+                        console.warn("⚠️ GPS Timed Out or Failed:", locError);
+
+                        // Fallback: Try Last Known Location (Cache)
+                        try {
+                            const lastKnown = await Location.getLastKnownPositionAsync({});
+                            if (lastKnown) {
+                                lat = lastKnown.coords.latitude;
+                                long = lastKnown.coords.longitude;
+                                console.log(`📍 Using Cached Location: ${lat}, ${long}`);
+                            } else {
+                                console.log("📍 No cached location available");
+                            }
+                        } catch (cacheError) {
+                            console.warn("⚠️ Could not get cached location:", cacheError);
+                        }
+                    }
+                } else {
+                    console.log("⚠️ Location Permission Denied");
+                }
+            } else {
+                console.log("⚠️ Location Services are disabled.");
+            }
+        } catch (locationError: any) {
+            // Log location errors but don't let them stop the API call
+            console.warn("⚠️ Location Error (will proceed without location):", locationError);
+        }
+
+        // ALWAYS call the API, even if location failed
+        try {
+            // Validate we have a categorySlug
+            if (!categorySlug) {
+                throw new Error("No category selected");
+            }
+
+            console.log(`📡 4. Calling API with category: "${categorySlug}", location: ${lat ? `${lat}, ${long}` : 'undefined (no location)'}`);
+            const data = await fetchProvidersByCategory(String(categorySlug), lat, long);
+
+            console.log(`✅ Success! Loaded ${data.length} providers.`);
+            setProviders(data);
 
         } catch (error: any) {
-            console.error("❌ Error fetching providers:", error);
-            const errorMessage = error.response?.data?.detail || "Could not connect to the server.";
+            console.error("❌ Error fetching providers from API:", error);
+            const errorMessage = error.response?.data?.detail || error.message || "Could not connect to the server.";
             Alert.alert("Error", errorMessage);
         } finally {
             setLoading(false);
@@ -112,6 +179,10 @@ export default function ProviderMarketplace() {
     const filteredProviders = providers.filter(p =>
         p.name.toLowerCase().includes(searchText.toLowerCase())
     );
+
+    useEffect(() => {
+        fetchProviders();
+    }, []);
 
     return (
         <LinearGradient
