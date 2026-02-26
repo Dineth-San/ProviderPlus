@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from app.routes import chatbot_routes, analysis_routes, auth_routes, provider_routes
+from app.routes import chatbot_routes, analysis_routes, auth_routes, provider_routes, messaging_routes
 from app.core.database import init_db
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(chatbot_routes.router, prefix="/api/ai-chat", tags=["AI Chat"
 app.include_router(analysis_routes.router, prefix="/api/ai-integration", tags=["AI Integration"])
 app.include_router(auth_routes.router, prefix="/api", tags=["Authentication"])
 app.include_router(provider_routes.router, prefix="/api/category-search")
+app.include_router(messaging_routes.router, prefix="/api", tags=["Messaging"])
 
 
 @app.get("/")
