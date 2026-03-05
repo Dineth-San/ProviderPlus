@@ -14,20 +14,16 @@ import {
   ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import {
+  DashboardData,
+  DEFAULT_DASHBOARD_DATA,
+  fetchAIOverview,
+  fetchDashboardData,
+} from './services/Dashboardservice.ts';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ─── Types ────────────────────────────────────────────────────
-
-interface DashboardData {
-  completedJobs: number;
-  upcomingJobs: number;
-  notifications: number;
-  rating: number;
-  totalReviews: number;
-  customerResponses: number;
-  reSchedules: number;
-}
 
 interface ExpandableCardProps {
   icon: string;
@@ -213,8 +209,8 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
   const [aiError, setAiError] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [dashboardData, setDashboardData] = useState<DashboardData>({
-    completedJobs: 0,
-    upcomingJobs: 3,
+    ...DEFAULT_DASHBOARD_DATA,
+    upcomingJobs: 2,
     notifications: 1,
     rating: 4.8,
     totalReviews: 24,
@@ -232,29 +228,20 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
     ]).start();
   }, [fadeAnim, slideAnim]);
 
-  const fetchAIOverview = useCallback(async (): Promise<void> => {
+  // ── Load AI Overview via service ──
+  const loadAIOverview = useCallback(async (): Promise<void> => {
     setAiLoading(true);
     setAiError(false);
     try {
-      // TODO: Replace with your actual backend URL
-      const API_BASE_URL = 'http://10.47.209.192:8000';
-
-      const response = await fetch(`${API_BASE_URL}/api/gemini/provider-overview`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider_id: providerId,
-          provider_name: providerName,
-          job_role: jobRole,
-          completed_jobs_today: dashboardData.completedJobs,
-          upcoming_jobs: dashboardData.upcomingJobs,
-          rating: dashboardData.rating,
-        }),
+      const overview = await fetchAIOverview({
+        provider_id: providerId,
+        provider_name: providerName,
+        job_role: jobRole,
+        completed_jobs_today: dashboardData.completedJobs,
+        upcoming_jobs: dashboardData.upcomingJobs,
+        rating: dashboardData.rating,
       });
-
-      if (!response.ok) throw new Error('Network response was not ok');
-      const data = await response.json();
-      setAiOverview(data.overview);
+      setAiOverview(overview);
     } catch (err) {
       console.error('AI Overview fetch error:', err);
       setAiError(true);
@@ -264,29 +251,28 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
   }, [providerId, providerName, jobRole, dashboardData]);
 
   useEffect(() => {
-    fetchAIOverview();
-  }, [fetchAIOverview]);
+    loadAIOverview();
+  }, [loadAIOverview]);
 
-  const fetchDashboardData = useCallback(async (): Promise<void> => {
+  // ── Load Dashboard Stats via service ──
+  const loadDashboardData = useCallback(async (): Promise<void> => {
     try {
-      const API_BASE_URL = '10.47.209.192:8000';
-      const response = await fetch(`${API_BASE_URL}/api/provider/${providerId}/dashboard`);
-      if (response.ok) {
-        const data: DashboardData = await response.json();
-        setDashboardData(data);
-      }
+      const data = await fetchDashboardData(providerId);
+      setDashboardData(data);
     } catch (err) {
       console.log('Dashboard data fetch error:', err);
+      // Keeps the default/hardcoded values — no crash
     }
   }, [providerId]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    loadDashboardData();
+  }, [loadDashboardData]);
 
+  // ── Pull to Refresh ──
   const onRefresh = async (): Promise<void> => {
     setRefreshing(true);
-    await Promise.all([fetchAIOverview(), fetchDashboardData()]);
+    await Promise.all([loadAIOverview(), loadDashboardData()]);
     setRefreshing(false);
   };
 
@@ -311,13 +297,11 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
           {/* ── Top Bar ── */}
           <View style={styles.topBar}>
             <View style={styles.logoContainer}>
-
-                <Image
-                  source={require('../assets/images/provider-logo.png')}
-                  style={styles.logo}
-                  resizeMode="contain"
-                />
-
+              <Image
+                source={require('../assets/images/provider-logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
             </View>
 
             <View style={styles.topBarRight}>
@@ -369,7 +353,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
               overview={aiOverview}
               loading={aiLoading}
               error={aiError}
-              onRetry={fetchAIOverview}
+              onRetry={loadAIOverview}
             />
           </Animated.View>
 
@@ -487,22 +471,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
   },
-  logoPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   logo: {
     width: 44,
     height: 44,
-  },
-  logoText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
   },
   topBarRight: {
     flexDirection: 'row',
@@ -607,18 +578,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     flex: 1,
-  },
-  aiBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  aiBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.5,
   },
   aiOverviewText: {
     color: 'rgba(255,255,255,0.9)',
