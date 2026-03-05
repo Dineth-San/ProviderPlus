@@ -1,393 +1,692 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
-  Switch,
-  StatusBar,
+  Animated,
   Dimensions,
+  Switch,
+  Image,
+  StatusBar,
+  RefreshControl,
+  ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  DashboardData,
+  DEFAULT_DASHBOARD_DATA,
+  fetchAIOverview,
+  fetchDashboardData,
+} from './services/Dashboardservice.ts';
 
-// Get screen width for the swipeable cards
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = width * 0.82;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const ProviderDash = () => {
-  const [isLanguageSinhala, setIsLanguageSinhala] = useState(false);
+// ─── Types ────────────────────────────────────────────────────
 
-  const toggleLanguage = () => setIsLanguageSinhala((previousState) => !previousState);
+interface ExpandableCardProps {
+  icon: string;
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  expandedContent?: React.ReactNode;
+  onPress?: () => void;
+  style?: ViewStyle;
+}
+
+interface AIOverviewCardProps {
+  overview: string;
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+}
+
+interface RouteParams {
+  params?: {
+    providerName?: string;
+    providerId?: string;
+    jobRole?: string;
+  };
+}
+
+interface ProviderDashboardProps {
+  navigation?: any;
+  route?: RouteParams;
+}
+
+// ─── Greeting Logic ───────────────────────────────────────────
+
+const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'Good Morning';
+  if (hour >= 12 && hour < 17) return 'Good Afternoon';
+  if (hour >= 17 && hour < 20) return 'Good Evening';
+  return 'Good Night';
+};
+
+const getGreetingEmoji = (): string => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return '☀️';
+  if (hour >= 12 && hour < 17) return '🌤️';
+  if (hour >= 17 && hour < 20) return '🌅';
+  return '🌙';
+};
+
+// ─── Expandable Card Component ────────────────────────────────
+
+const ExpandableCard: React.FC<ExpandableCardProps> = ({
+  icon,
+  title,
+  value,
+  subtitle,
+  expandedContent,
+  onPress,
+  style,
+}) => {
+  const [expanded, setExpanded] = useState<boolean>(false);
+  const animHeight = useRef(new Animated.Value(0)).current;
+  const animScale = useRef(new Animated.Value(1)).current;
+
+  const toggleExpand = (): void => {
+    if (onPress) {
+      onPress();
+      return;
+    }
+    const toExpanded = !expanded;
+    setExpanded(toExpanded);
+
+    Animated.parallel([
+      Animated.spring(animHeight, {
+        toValue: toExpanded ? 1 : 0,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: false,
+      }),
+      Animated.spring(animScale, {
+        toValue: toExpanded ? 1.02 : 1,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const expandedHeight = animHeight.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 100],
+  });
 
   return (
-    <LinearGradient
-          colors={['#00C6FF', '#0072FF']}
-          style={styles.container}
-        >
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
-      <SafeAreaView style={styles.safeArea}>
-        {/* Header Section */}
-        <View style={styles.headerContainer}>
-          <View style={styles.headerLeft}>
-            <TouchableOpacity>
-              <Ionicons name="chevron-back" size={28} color="#ffffff" />
-            </TouchableOpacity>
-            <Text style={styles.logoText}>P</Text>
+    <Animated.View style={[{ transform: [{ scale: animScale }] }, style]}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onLongPress={toggleExpand}
+        onPress={onPress || toggleExpand}
+        delayLongPress={400}
+        style={styles.card}
+      >
+        <View style={styles.cardInner}>
+          <View style={styles.cardIconContainer}>
+            <Text style={styles.cardIcon}>{icon}</Text>
           </View>
-
-          <View style={styles.headerRight}>
-            <Text style={styles.languageText}>ENG | සිං</Text>
-            <Switch
-              trackColor={{ false: '#767577', true: '#FF8C00' }}
-              thumbColor={'#ffffff'}
-              ios_backgroundColor="#3e3e3e"
-              onValueChange={toggleLanguage}
-              value={isLanguageSinhala}
-              style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
-            />
+          <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
+          <View style={styles.cardValueRow}>
+            <Text style={styles.cardValue} numberOfLines={1}>{value}</Text>
+            {subtitle ? <Text style={styles.cardSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
           </View>
         </View>
 
-        <Text style={styles.pageTitle}>Provider Dashboard</Text>
-
-        {/* Main Vertical Scrollable Content */}
-        <ScrollView
-          style={styles.scrollContainer}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+        <Animated.View
+          style={[styles.expandedSection, { height: expandedHeight, opacity: animHeight }]}
         >
-          {/* AI Smart Overview Card */}
-          <View style={[styles.card, styles.aiCard]}>
-            <View style={styles.aiHeader}>
-              <Text style={styles.aiIcon}>✨</Text>
-              <Text style={styles.aiTitle}>AI Smart Overview</Text>
+          {expanded && (
+            <View style={styles.expandedContentInner}>
+              <View style={styles.divider} />
+              {expandedContent}
             </View>
-            <Text style={styles.aiText}>
-              <Text style={{fontWeight: 'bold'}}>📈 Demand Spike:</Text> 45 users in the Gampaha area searched for 'emergency pipe leak' in the last 12 hours.
-            </Text>
-            <TouchableOpacity style={styles.aiButton}>
-              <Text style={styles.aiButtonText}>Update Service Radius</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick Stats Section */}
-          <Text style={styles.sectionTitle}>Quick Stats</Text>
-          <View style={styles.statsGrid}>
-            <View style={[styles.card, styles.statCard]}>
-              <Text style={styles.statLabel}>Today's Earnings</Text>
-              <Text style={styles.statValue}>LKR 4,500</Text>
-            </View>
-            <View style={[styles.card, styles.statCard]}>
-              <Text style={styles.statLabel}>Jobs Done</Text>
-              <Text style={styles.statValue}>12</Text>
-            </View>
-            <View style={[styles.card, styles.statCard]}>
-              <Text style={styles.statLabel}>Avg Rating</Text>
-              <Text style={styles.statValue}>⭐ 4.8</Text>
-            </View>
-            <View style={[styles.card, styles.statCard]}>
-              <Text style={styles.statLabel}>Profile Views</Text>
-              <Text style={styles.statValue}>230</Text>
-            </View>
-          </View>
-
-          {/* Action Center - HORIZONTAL SWIPE CARDS */}
-          <Text style={styles.sectionTitle}>At a Glance</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={CARD_WIDTH + 15} // Card width + marginRight for smooth snapping
-            decelerationRate="fast"
-            contentContainerStyle={styles.actionScrollContent}
-          >
-            {/* Card 1: Pending Request */}
-            <View style={[styles.card, styles.swipeCard]}>
-              <View style={styles.jobHeader}>
-                <View>
-                  <Text style={styles.badgeTextUrgent}>New Request</Text>
-                  <Text style={styles.jobTitle}>Blocked Sink Repair</Text>
-                </View>
-                <Text style={styles.jobPrice}>LKR 2,500</Text>
-              </View>
-              <Text style={styles.jobDetails}>📍 12 Temple Rd, Gampaha</Text>
-              <Text style={styles.jobDetails}>🕒 Today, 2:00 PM</Text>
-              <View style={styles.jobActions}>
-                <TouchableOpacity style={[styles.actionBtn, styles.declineBtn]}>
-                  <Text style={styles.declineBtnText}>Decline</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, styles.acceptBtn]}>
-                  <Text style={styles.acceptBtnText}>Accept</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Card 2: Upcoming Appointment */}
-            <View style={[styles.card, styles.swipeCard]}>
-              <View style={styles.jobHeader}>
-                <View>
-                  <Text style={styles.badgeTextInfo}>Up Next</Text>
-                  <Text style={styles.jobTitle}>Pipe Installation</Text>
-                </View>
-              </View>
-              <Text style={styles.jobDetails}>👤 Kamal Perera</Text>
-              <Text style={styles.jobDetails}>📍 45 Main St, Colombo</Text>
-              <Text style={styles.jobDetails}>🕒 Tomorrow, 10:00 AM</Text>
-              <View style={styles.jobActions}>
-                <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]}>
-                  <Text style={styles.secondaryBtnText}>Directions</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, styles.primaryBtn]}>
-                  <Text style={styles.primaryBtnText}>Call Customer</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Card 3: Recent Completion */}
-            <View style={[styles.card, styles.swipeCard]}>
-              <View style={styles.jobHeader}>
-                <View>
-                  <Text style={styles.badgeTextSuccess}>Completed</Text>
-                  <Text style={styles.jobTitle}>Water Heater Fix</Text>
-                </View>
-                <Text style={styles.jobPrice}>+LKR 5,000</Text>
-              </View>
-              <Text style={styles.jobDetails}>✅ Payment added to wallet</Text>
-              <Text style={styles.jobDetails}>⭐ Customer left a 5-star review</Text>
-              <View style={styles.jobActions}>
-                <TouchableOpacity style={[styles.actionBtn, styles.primaryBtn]}>
-                  <Text style={styles.primaryBtnText}>View Receipt</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-          </ScrollView>
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </SafeAreaView>
-    </LinearGradient>
+          )}
+        </Animated.View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
+
+// ─── AI Overview Card ─────────────────────────────────────────
+
+const AIOverviewCard: React.FC<AIOverviewCardProps> = ({ overview, loading, error, onRetry }) => {
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    if (loading) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0.4, duration: 800, useNativeDriver: true }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    }
+  }, [loading, pulseAnim]);
+
+  return (
+    <View style={styles.aiCard}>
+      <View style={styles.aiCardHeader}>
+        <Text style={styles.aiCardIcon}>✨</Text>
+        <Text style={styles.aiCardTitle}>AI Overview</Text>
+      </View>
+
+      {loading ? (
+        <View style={styles.aiLoadingContainer}>
+          <Animated.View style={[styles.aiSkeletonLine, { opacity: pulseAnim, width: '90%' }]} />
+          <Animated.View style={[styles.aiSkeletonLine, { opacity: pulseAnim, width: '75%' }]} />
+          <Animated.View style={[styles.aiSkeletonLine, { opacity: pulseAnim, width: '60%' }]} />
+        </View>
+      ) : error ? (
+        <View style={styles.aiErrorContainer}>
+          <Text style={styles.aiErrorText}>Unable to load insights right now.</Text>
+          <TouchableOpacity onPress={onRetry} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Tap to Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <Text style={styles.aiOverviewText}>{overview}</Text>
+      )}
+    </View>
+  );
+};
+
+// ─── Main Dashboard Screen ────────────────────────────────────
+
+const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route }) => {
+  const providerName: string = route?.params?.providerName || 'Nimal Chandra';
+  const providerId: string = route?.params?.providerId || 'provider_001';
+  const jobRole: string = route?.params?.jobRole || 'Plumber';
+
+  const [isSinhala, setIsSinhala] = useState<boolean>(false);
+  const [aiOverview, setAiOverview] = useState<string>('');
+  const [aiLoading, setAiLoading] = useState<boolean>(true);
+  const [aiError, setAiError] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    ...DEFAULT_DASHBOARD_DATA,
+    upcomingJobs: 2,
+    notifications: 1,
+    rating: 4.8,
+    totalReviews: 24,
+    customerResponses: 5,
+    reSchedules: 12,
+  });
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
+  // ── Load AI Overview via service ──
+  const loadAIOverview = useCallback(async (): Promise<void> => {
+    setAiLoading(true);
+    setAiError(false);
+    try {
+      const overview = await fetchAIOverview({
+        provider_id: providerId,
+        provider_name: providerName,
+        job_role: jobRole,
+        completed_jobs_today: dashboardData.completedJobs,
+        upcoming_jobs: dashboardData.upcomingJobs,
+        rating: dashboardData.rating,
+      });
+      setAiOverview(overview);
+    } catch (err) {
+      console.error('AI Overview fetch error:', err);
+      setAiError(true);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [providerId, providerName, jobRole, dashboardData]);
+
+  useEffect(() => {
+    loadAIOverview();
+  }, [loadAIOverview]);
+
+  // ── Load Dashboard Stats via service ──
+  const loadDashboardData = useCallback(async (): Promise<void> => {
+    try {
+      const data = await fetchDashboardData(providerId);
+      setDashboardData(data);
+    } catch (err) {
+      console.log('Dashboard data fetch error:', err);
+      // Keeps the default/hardcoded values — no crash
+    }
+  }, [providerId]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  // ── Pull to Refresh ──
+  const onRefresh = async (): Promise<void> => {
+    setRefreshing(true);
+    await Promise.all([loadAIOverview(), loadDashboardData()]);
+    setRefreshing(false);
+  };
+
+  const toggleLanguage = (): void => {
+    setIsSinhala(!isSinhala);
+  };
+
+  const greeting = getGreeting();
+  const emoji = getGreetingEmoji();
+
+  return (
+    <>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <LinearGradient colors={['#17AEFF', '#003D96']} style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />
+          }
+        >
+          {/* ── Top Bar ── */}
+          <View style={styles.topBar}>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require('../assets/images/provider-logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+
+            <View style={styles.topBarRight}>
+              <View style={styles.languageToggle}>
+                <Text style={[styles.langLabel, !isSinhala && styles.langLabelActive]}>ENG</Text>
+                <Text style={styles.langDivider}>|</Text>
+                <Text style={[styles.langLabel, isSinhala && styles.langLabelActive]}>සිං</Text>
+                <Switch
+                  value={isSinhala}
+                  onValueChange={toggleLanguage}
+                  trackColor={{ false: 'rgba(255,255,255,0.3)', true: '#FF6B35' }}
+                  thumbColor={isSinhala ? '#fff' : '#f0f0f0'}
+                  ios_backgroundColor="rgba(255,255,255,0.3)"
+                  style={styles.switchStyle}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.bellButton}
+                onPress={() => navigation?.navigate?.('Notifications')}
+              >
+                <Text style={styles.bellIcon}>🔔</Text>
+                {dashboardData.notifications > 0 && (
+                  <View style={styles.notifBadge}>
+                    <Text style={styles.notifBadgeText}>{dashboardData.notifications}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ── Welcome Section ── */}
+          <Animated.View
+            style={[
+              styles.welcomeSection,
+              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+            ]}
+          >
+            <Text style={styles.dashboardLabel}>Provider Dashboard</Text>
+            <Text style={styles.greetingText}>
+              {greeting}, {emoji}
+            </Text>
+            <Text style={styles.providerName}>{providerName}</Text>
+          </Animated.View>
+
+          {/* ── AI Overview ── */}
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+            <AIOverviewCard
+              overview={aiOverview}
+              loading={aiLoading}
+              error={aiError}
+              onRetry={loadAIOverview}
+            />
+          </Animated.View>
+
+          {/* ── Dashboard Cards Grid ── */}
+          <View style={styles.cardsGrid}>
+            <View style={styles.cardRow}>
+              <ExpandableCard
+                icon="✅"
+                title="Completed Jobs"
+                value={dashboardData.completedJobs}
+                subtitle="Today"
+                onPress={() => navigation?.navigate?.('CompletedJobs')}
+                style={styles.cardWrapper}
+              />
+              <ExpandableCard
+                icon="📋"
+                title="Upcoming Jobs"
+                value={dashboardData.upcomingJobs}
+                subtitle="Scheduled"
+                expandedContent={
+                  <View>
+                    <Text style={styles.expandedText}>Next job in 2 hours</Text>
+                    <Text style={styles.expandedText}>Tap to see full schedule →</Text>
+                  </View>
+                }
+                style={styles.cardWrapper}
+              />
+            </View>
+
+            <View style={styles.cardRow}>
+              <ExpandableCard
+                icon="🔔"
+                title="Notifications"
+                value={dashboardData.notifications}
+                subtitle="New"
+                expandedContent={
+                  <View>
+                    <Text style={styles.expandedText}>• New job request nearby</Text>
+                    <Text style={styles.expandedText}>Tap to view all →</Text>
+                  </View>
+                }
+                style={styles.cardWrapper}
+              />
+              <ExpandableCard
+                icon="⭐"
+                title="Rating"
+                value={dashboardData.rating}
+                subtitle={`(${dashboardData.totalReviews})`}
+                expandedContent={
+                  <View>
+                    <Text style={styles.expandedText}>Top rated in your area!</Text>
+                    <Text style={styles.expandedText}>5★: 18 | 4★: 4 | 3★: 2</Text>
+                  </View>
+                }
+                style={styles.cardWrapper}
+              />
+            </View>
+
+            <View style={styles.cardRow}>
+              <ExpandableCard
+                icon="💬"
+                title="Responses"
+                value={dashboardData.customerResponses}
+                subtitle="Pending"
+                expandedContent={
+                  <View>
+                    <Text style={styles.expandedText}>3 awaiting your reply</Text>
+                    <Text style={styles.expandedText}>Avg response time: 12min</Text>
+                  </View>
+                }
+                style={styles.cardWrapper}
+              />
+              <ExpandableCard
+                icon="🔄"
+                title="Re-Schedules"
+                value={dashboardData.reSchedules}
+                subtitle="View All"
+                expandedContent={
+                  <View>
+                    <Text style={styles.expandedText}>2 pending approval</Text>
+                    <Text style={styles.expandedText}>10 completed this month</Text>
+                  </View>
+                }
+                style={styles.cardWrapper}
+              />
+            </View>
+          </View>
+
+          {/* Bottom spacing for your existing navbar */}
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </LinearGradient>
+    </>
+  );
+};
+
+// ─── Styles ───────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  safeArea: {
-    flex: 1,
-    marginTop: StatusBar.currentHeight || 40,
+  scrollContent: {
+    paddingTop: 50,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
   },
-  headerContainer: {
+  topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 10,
+    marginBottom: 20,
   },
-  headerLeft: {
+  logoContainer: {
+    width: 44,
+    height: 44,
+  },
+  logo: {
+    width: 44,
+    height: 44,
+  },
+  topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
-  logoText: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: 'bold',
-    fontStyle: 'italic',
-    marginLeft: 5,
-  },
-  headerRight: {
+  languageToggle: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  languageText: {
-    color: '#ffffff',
-    fontSize: 14,
+  langLabel: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
     fontWeight: '600',
-    marginRight: 5,
   },
-  pageTitle: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginTop: 20,
-    marginBottom: 10,
+  langLabelActive: {
+    color: '#fff',
   },
-  scrollContainer: {
-    flex: 1,
+  langDivider: {
+    color: 'rgba(255,255,255,0.4)',
+    marginHorizontal: 6,
+    fontSize: 12,
   },
-  scrollContent: {
-    paddingBottom: 20,
-    paddingHorizontal: 20, // Moved padding here from container so horizontal scroll goes to edge
+  switchStyle: {
+    marginLeft: 6,
+    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
-  sectionTitle: {
-    color: '#ffffff',
+  bellButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bellIcon: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 10,
-    marginLeft: 5,
   },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
+  notifBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notifBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  welcomeSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  dashboardLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  greetingText: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  providerName: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 18,
+    fontWeight: '500',
   },
   aiCard: {
-    borderColor: '#0CB6FF',
-    borderWidth: 2,
-    marginTop: 10,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
-  aiHeader: {
+  aiCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  aiIcon: {
+  aiCardIcon: {
     fontSize: 20,
     marginRight: 8,
   },
-  aiTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#004BB5',
-  },
-  aiText: {
-    fontSize: 14,
-    color: '#333333',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  aiButton: {
-    backgroundColor: '#004BB5',
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  aiButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  statCard: {
-    width: '48%',
-    marginBottom: 15,
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666666',
-    marginBottom: 5,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#222222',
-  },
-  // --- Swipeable Action Center Styles ---
-  actionScrollContent: {
-    paddingBottom: 10, // Shadow clipping prevention
-    paddingRight: 20, // Add padding to the end of the scroll
-  },
-  swipeCard: {
-    width: CARD_WIDTH,
-    marginRight: 15, // Space between cards
-    marginBottom: 5,
-  },
-  badgeTextUrgent: {
-    color: '#dc3545',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  badgeTextInfo: {
-    color: '#007AFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  badgeTextSuccess: {
-    color: '#28a745',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  jobHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  jobTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#222222',
-  },
-  jobPrice: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#28a745',
-  },
-  jobDetails: {
-    fontSize: 14,
-    color: '#555555',
-    marginBottom: 6,
-  },
-  jobActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  actionBtn: {
+  aiCardTitle: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
     flex: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
+  },
+  aiOverviewText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    lineHeight: 22,
+    fontWeight: '400',
+  },
+  aiLoadingContainer: {
+    gap: 10,
+  },
+  aiSkeletonLine: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  aiErrorContainer: {
     alignItems: 'center',
-    marginHorizontal: 4,
+    paddingVertical: 8,
   },
-  declineBtn: {
-    backgroundColor: '#f8d7da',
+  aiErrorText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    marginBottom: 8,
   },
-  declineBtnText: {
-    color: '#dc3545',
-    fontWeight: 'bold',
+  retryButton: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  acceptBtn: {
-    backgroundColor: '#28a745',
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
-  acceptBtnText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
+  cardsGrid: {
+    gap: 12,
   },
-  primaryBtn: {
-    backgroundColor: '#004BB5',
+  cardRow: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  primaryBtnText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
+  cardWrapper: {
+    flex: 1,
   },
-  secondaryBtn: {
-    backgroundColor: '#e2e6ea',
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden',
+    minHeight: 110,
   },
-  secondaryBtnText: {
-    color: '#333333',
-    fontWeight: 'bold',
+  cardInner: {
+    alignItems: 'flex-start',
+  },
+  cardIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  cardIcon: {
+    fontSize: 18,
+  },
+  cardTitle: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  cardValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 5,
+  },
+  cardValue: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  cardSubtitle: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  expandedSection: {
+    overflow: 'hidden',
+  },
+  expandedContentInner: {
+    paddingTop: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginVertical: 8,
+  },
+  expandedText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    lineHeight: 20,
+    fontWeight: '400',
   },
 });
 
-export default ProviderDash;
+export default ProviderDashboard;

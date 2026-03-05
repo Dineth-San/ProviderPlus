@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from app.routes.dashboard_routes import router as dashboard_router
 from app.routes import (
     chatbot_routes,
     analysis_routes,
@@ -132,4 +133,7 @@ app.include_router(messaging_routes.router, prefix="/api", tags=["Messaging"])
 
 @app.get("/")
 def read_root():
-    return {"Provider+ backend is running!"}
+    return {"message: Provider+ backend is running!"}
+
+app.include_router(dashboard_router)
+
