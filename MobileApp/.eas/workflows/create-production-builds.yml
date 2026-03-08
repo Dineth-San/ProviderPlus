@@ -1,7 +1,21 @@
 name: Create Production Builds
 
+on:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+
 jobs:
   build_android:
-    type: build # This job type creates a production build for Android
+    name: Build Android Production
+    type: build
     params:
       platform: android
+      profile: production
+    # Automatically retry once if it fails due to a network timeout
+    retries: 1
