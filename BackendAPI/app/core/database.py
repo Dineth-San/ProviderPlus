@@ -44,7 +44,7 @@ async def init_db():
                 Conversation,
                 Message,
                 PushToken,
-                Booking
+                Booking,
             ]
         )
     # handling relevant errors
