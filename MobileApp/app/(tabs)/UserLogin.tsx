@@ -19,6 +19,7 @@ import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 import { loginUser } from '../services/authService';
 import { configureGoogleSignIn, signInWithGoogle } from "../services/googleAuthService";
+import { useAuth } from '../context/AuthContext';
 
 type UserRole = 'customer' | 'provider';
 type Language = 'ENG' | 'සිං';
@@ -38,6 +39,7 @@ const UserLogin: React.FC = () => {
     const [isTranslating, setIsTranslating] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState<boolean>(false);
+    const { setRole } = useAuth();
 
     // Error states
     const [emailError, setEmailError] = useState<string>("");
@@ -149,21 +151,39 @@ const UserLogin: React.FC = () => {
                 email: email.trim().toLowerCase(),
                 password: password
             });
-
-            // Success!
-            Alert.alert(
-                "Welcome Back!",
-                `Successfully logged in as ${response.user_name}`,
-                [
-                    {
-                        text: "OK",
-                        onPress: () => {
-                            // Navigate to home page
-                            router.replace('/(tabs)');
+            if (userRole === 'customer'){
+                setRole('user')
+                Alert.alert(
+                    "Welcome Back!",
+                    `Successfully logged in as ${response.user_name}`,
+                    [
+                        {
+                            text: "OK",
+                            onPress: () => {
+                                // Navigate to home page
+                                router.replace('/(tabs)');
+                            }
                         }
-                    }
-                ]
-            );
+                    ]
+                );
+            }
+            else{
+                setRole('provider')
+                Alert.alert(
+                    "Welcome Back!",
+                    `Successfully logged in as ${response.user_name}`,
+                    [
+                        {
+                            text: "OK",
+                            onPress: () => {
+                                // Navigate to home page
+                                router.replace('/(tabs)/dash');
+                            }
+                        }
+                    ]
+                );
+            }
+
 
         } catch (error: any) {
             // Show error message
