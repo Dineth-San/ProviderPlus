@@ -177,7 +177,7 @@ const UserLogin: React.FC = () => {
                             text: "OK",
                             onPress: () => {
                                 // Navigate to home page
-                                router.replace('/(tabs)/dash');
+                                router.replace('/ProviderDash');
                             }
                         }
                     ]

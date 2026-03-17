@@ -168,7 +168,7 @@ export default function TabLayout() {
 
         {/* DASHBOARD – providers only */}
         <Tabs.Screen
-            name="DASHBOARD"
+            name="ProviderDash"
             listeners={() => ({
               tabPress: (e) => {
                 e.preventDefault();

@@ -18,7 +18,6 @@ def get_chat_response(user_message: str, valid_categories: list[str]) -> AgentRe
                 Do not provide translations or switch to English unless explicitly asked. If the user uses Singlish, reply in Singlish.
                 RULE A: REPLY TO USER
                 - IMPORTANT - Reply in the SAME language/script the user used. 
-                - Example: User says "Mata...", you say "Hari, mama..."
                 
                 KEYWORD PROTOCOL (SMART SEARCH):
                 - Do NOT just copy the user's exact word.
