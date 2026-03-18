@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   headerTitle: {
-    fontSize: 29,
+    fontSize: 25,
     fontWeight: '800',
     color: 'white',
     position: 'absolute',
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1,
   },
-  backArrow: { color: 'white', fontSize: 30, fontWeight: '300', marginTop: -2 },
+  backArrow: { color: 'white', fontSize: 30, fontWeight: '300', marginTop: -6 },
   languageToggle: {
     flexDirection: 'row',
     alignItems: 'center',
