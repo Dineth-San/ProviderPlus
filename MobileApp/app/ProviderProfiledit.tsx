@@ -1,17 +1,3 @@
-/**
- * ProviderProfiledit.tsx
- * Provider+ App — Provider Profile Editing Screen
- *
- * Changes in this commit:
- *  - LinearGradient background (#1086b5 → #022373)
- *  - Skills chips center-aligned
- *  - Provider+ logo in top right of header
- *  - Edit Details button removed
- *
- * Required packages:
- *   npx expo install expo-image-picker expo-document-picker expo-linear-gradient
- */
-
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -350,6 +336,9 @@ export default function ProviderProfiledit(): React.JSX.Element {
   const [location, setLocation] = useState<SelectedLocation | null>(null);
   const [brNumber, setBrNumber] = useState<string>('');
 
+  // ── Validation errors ─────────────────────────────────────────────────────
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const [works, setWorks] = useState<WorkItem[]>([
     { name: '', attachments: [], description: '' },
   ]);
@@ -363,6 +352,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
           if (raw) {
             const parsed: SelectedLocation = JSON.parse(raw);
             setLocation(parsed);
+            setErrors(e => ({ ...e, location: '' }));
             await AsyncStorage.removeItem(LOCATION_PICKER_RESULT_KEY);
           }
         } catch {
@@ -420,11 +410,51 @@ export default function ProviderProfiledit(): React.JSX.Element {
   const removeWork = (index: number): void =>
     setWorks((prev) => prev.filter((_, i) => i !== index));
 
+  // ── Validation ────────────────────────────────────────────────────────────
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\d{7,15}$/;
+
+    if (!name.trim())
+      newErrors.name = 'Full name is required';
+
+    if (!email.trim())
+      newErrors.email = 'Email is required';
+    else if (!emailRegex.test(email))
+      newErrors.email = 'Invalid email format';
+
+    if (!contact.trim())
+      newErrors.contact = 'Contact number is required';
+    else if (!phoneRegex.test(contact.trim()))
+      newErrors.contact = 'Enter a valid contact number (7–15 digits)';
+
+    if (!category)
+      newErrors.category = 'Please select a service category';
+
+    if (!serviceDescription.trim())
+      newErrors.serviceDescription = 'Please add a service description';
+    else if (serviceDescription.trim().length < 20)
+      newErrors.serviceDescription = 'Description too short (min 20 characters)';
+
+    if (!location)
+      newErrors.location = 'Please set your business location';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // ── Error text helper — same pattern as ProviderSignUp ───────────────────
+  const err = (field: string) =>
+    errors[field]
+      ? <Text style={styles.errorText}>{errors[field]}</Text>
+      : null;
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+
   const handleSave = (): void => {
-    if (!name.trim() || !email.trim()) {
-      Alert.alert('Missing Info', 'Please fill in your name and email.');
-      return;
-    }
+    if (!validate()) return;
     Alert.alert('Profile Updated', 'Your provider profile has been saved successfully!');
   };
 
@@ -495,11 +525,14 @@ export default function ProviderProfiledit(): React.JSX.Element {
 
             {/* ── Personal Info ── */}
             <View style={styles.card}>
-              <InputField label="Name" value={name} onChangeText={setName} />
+              <InputField label="Name" value={name} onChangeText={(t) => { setName(t); setErrors(e => ({ ...e, name: '' })); }} />
+              {err('name')}
               <View style={styles.divider} />
-              <InputField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" />
+              <InputField label="Email" value={email} onChangeText={(t) => { setEmail(t); setErrors(e => ({ ...e, email: '' })); }} keyboardType="email-address" />
+              {err('email')}
               <View style={styles.divider} />
-              <InputField label="Contact No." value={contact} onChangeText={setContact} keyboardType="phone-pad" />
+              <InputField label="Contact No." value={contact} onChangeText={(t) => { setContact(t); setErrors(e => ({ ...e, contact: '' })); }} keyboardType="phone-pad" />
+              {err('contact')}
               <View style={styles.divider} />
               <InputField label="NIC" value={nic} onChangeText={setNic} />
             </View>
@@ -509,7 +542,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
 
             {/* Category */}
             <TouchableOpacity
-              style={styles.dropdown}
+              style={[styles.dropdown, errors.category ? styles.inputError : null]}
               onPress={() => setCategoryModalVisible(true)}
               activeOpacity={0.8}
             >
@@ -518,20 +551,22 @@ export default function ProviderProfiledit(): React.JSX.Element {
               </Text>
               <Ionicons name="chevron-down" size={18} color={COLORS.textMuted} />
             </TouchableOpacity>
+            {err('category')}
 
             {/* Service Description */}
             <View style={styles.card}>
               <Text style={styles.inputLabel}>Service Description</Text>
               <TextInput
-                style={[styles.input, styles.inputMultiline]}
+                style={[styles.input, styles.inputMultiline, errors.serviceDescription ? styles.inputError : null]}
                 value={serviceDescription}
-                onChangeText={setServiceDescription}
+                onChangeText={(t) => { setServiceDescription(t); setErrors(e => ({ ...e, serviceDescription: '' })); }}
                 placeholder="Enter A Description About You"
                 placeholderTextColor={COLORS.textMuted}
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
               />
+              {err('serviceDescription')}
             </View>
 
             {/* ── Skills — center aligned ── */}
@@ -598,7 +633,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
 
             {/* ── Company Location ── */}
             <TouchableOpacity
-              style={styles.locationField}
+              style={[styles.locationField, errors.location ? styles.inputError : null]}
               onPress={() => router.push('./LocationPicker')}
               activeOpacity={0.8}
             >
@@ -619,6 +654,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
               </Text>
               <Ionicons name="map-outline" size={18} color="rgba(255,255,255,0.5)" />
             </TouchableOpacity>
+            {err('location')}
 
             {/* ── BR Number ── */}
             <View style={styles.card}>
@@ -685,7 +721,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={[styles.modalItem, category === item && styles.modalItemSelected]}
-                    onPress={() => { setCategory(item); setCategoryModalVisible(false); }}
+                    onPress={() => { setCategory(item); setCategoryModalVisible(false); setErrors(e => ({ ...e, category: '' })); }}
                   >
                     <Text style={[
                       styles.modalItemText,
@@ -949,6 +985,20 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
   },
   skipBtnText: { color: COLORS.textSub, fontSize: 15, fontWeight: '600' },
+
+  // Validation
+  errorText: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  inputError: {
+    borderColor: '#FFD700',
+    borderWidth: 1.5,
+  },
 
   // Category Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
