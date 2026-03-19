@@ -1,8 +1,6 @@
 /**
  * ProviderProfile.tsx
- * COMMIT 1 — Hero card, Stats bar, Rating row
- * Sections: Header, Hero card (avatar/name/category/location/edit),
- *           Stats bar, Rating row
+ * COMMIT 2 — Hero + Stats + Rating + Skills + Work Portfolio
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -13,6 +11,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  Dimensions,
   ActivityIndicator,
   StatusBar,
   Animated,
@@ -23,7 +22,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface WorkPortfolioItem {
+  id: string;
+  name: string;
+  description: string;
+  imageUri?: string;
+}
 
 interface ProviderData {
   id: string;
@@ -36,6 +44,8 @@ interface ProviderData {
   jobsCompleted: number;
   memberSince: string;
   isVerified: boolean;
+  skills: string[];
+  portfolio: WorkPortfolioItem[];
 }
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
@@ -68,6 +78,12 @@ const MOCK_PROVIDER: ProviderData = {
   jobsCompleted: 142,
   memberSince: '2022',
   isVerified: true,
+  skills: ['Electrical', 'Wiring', 'Solar Panels', 'CCTV', 'Networking', 'Lighting', 'Maintenance', 'Safety Checks'],
+  portfolio: [
+    { id: '1', name: 'Office Rewiring – Colombo 3', description: 'Full rewiring of a 3-floor office building with new distribution boards.' },
+    { id: '2', name: 'Solar Panel Installation', description: '6kW solar system installed for a residential property in Nugegoda.' },
+    { id: '3', name: 'CCTV Setup – Retail Store', description: '16-camera HD CCTV system with remote viewing for a supermarket.' },
+  ],
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -77,13 +93,7 @@ const StarRow: React.FC<{ rating: number; size?: number }> = ({ rating, size = 1
     {[1, 2, 3, 4, 5].map((i) => (
       <Ionicons
         key={i}
-        name={
-          i <= Math.floor(rating)
-            ? 'star'
-            : i - rating < 1
-            ? 'star-half'
-            : 'star-outline'
-        }
+        name={i <= Math.floor(rating) ? 'star' : i - rating < 1 ? 'star-half' : 'star-outline'}
         size={size}
         color={COLORS.gold}
       />
@@ -91,9 +101,7 @@ const StarRow: React.FC<{ rating: number; size?: number }> = ({ rating, size = 1
   </View>
 );
 
-const StatItem: React.FC<{ icon: string; value: string; label: string }> = ({
-  icon, value, label,
-}) => (
+const StatItem: React.FC<{ icon: string; value: string; label: string }> = ({ icon, value, label }) => (
   <View style={styles.statItem}>
     <Ionicons name={icon as any} size={22} color={COLORS.accentLight} />
     <Text style={styles.statValue}>{value}</Text>
@@ -101,12 +109,21 @@ const StatItem: React.FC<{ icon: string; value: string; label: string }> = ({
   </View>
 );
 
+const SectionHeader: React.FC<{ title: string }> = ({ title }) => (
+  <View style={styles.sectionHeaderRow}>
+    <View style={styles.sectionLine} />
+    <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={styles.sectionLine} />
+  </View>
+);
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ProviderProfile(): React.JSX.Element {
-  const [provider, setProvider] = useState<ProviderData | null>(null);
-  const [loading, setLoading]   = useState<boolean>(true);
-  const [isSinhala, setIsSinhala] = useState<boolean>(false);
+  const [provider, setProvider]                   = useState<ProviderData | null>(null);
+  const [loading, setLoading]                     = useState<boolean>(true);
+  const [showAllPortfolio, setShowAllPortfolio]   = useState<boolean>(false);
+  const [isSinhala, setIsSinhala]                 = useState<boolean>(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -142,26 +159,16 @@ export default function ProviderProfile(): React.JSX.Element {
   }
 
   return (
-    <LinearGradient
-      colors={[COLORS.gradientTop, COLORS.gradientBot]}
-      style={styles.gradient}
-      start={{ x: 0.5, y: 0 }}
-      end={{ x: 0.5, y: 1 }}
-    >
+    <LinearGradient colors={[COLORS.gradientTop, COLORS.gradientBot]} style={styles.gradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" />
 
-      {/* ── Header ── */}
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
               <Ionicons name="chevron-back" size={22} color={COLORS.text} />
             </TouchableOpacity>
-            <Image
-              source={require('../assets/images/provider-logo.png')}
-              style={styles.headerLogo}
-              resizeMode="contain"
-            />
+            <Image source={require('../assets/images/provider-logo.png')} style={styles.headerLogo} resizeMode="contain" />
           </View>
           <Text style={styles.headerTitle}>My Profile</Text>
           <View style={styles.languageToggle}>
@@ -181,25 +188,16 @@ export default function ProviderProfile(): React.JSX.Element {
       </SafeAreaView>
 
       <Animated.View style={[{ flex: 1 }, { opacity: fadeAnim }]}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
           {/* ── Hero Card ── */}
           <View style={styles.heroCard}>
             <View style={styles.heroCircle1} />
             <View style={styles.heroCircle2} />
-
-            <TouchableOpacity
-              style={styles.editBtn}
-              onPress={() => router.push('/ProviderProfiledit')}
-              activeOpacity={0.85}
-            >
+            <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/ProviderProfiledit')} activeOpacity={0.85}>
               <Feather name="edit-2" size={14} color="#fff" />
               <Text style={styles.editBtnText}>Edit Profile</Text>
             </TouchableOpacity>
-
             <View style={styles.avatarWrapper}>
               {provider.photoUri ? (
                 <Image source={{ uri: provider.photoUri }} style={styles.avatar} />
@@ -214,7 +212,6 @@ export default function ProviderProfile(): React.JSX.Element {
                 </View>
               )}
             </View>
-
             <View style={styles.heroNameRow}>
               <Text style={styles.heroName}>{provider.name}</Text>
               {provider.isVerified && (
@@ -248,11 +245,57 @@ export default function ProviderProfile(): React.JSX.Element {
             <Text style={styles.ratingBigNum}>{provider.rating.toFixed(1)}</Text>
             <View style={styles.ratingRightCol}>
               <StarRow rating={provider.rating} size={18} />
-              <Text style={styles.ratingSubText}>
-                Based on {provider.reviewCount} customer reviews
-              </Text>
+              <Text style={styles.ratingSubText}>Based on {provider.reviewCount} customer reviews</Text>
             </View>
           </View>
+
+          {/* ── Skills ── */}
+          <SectionHeader title="Skills" />
+          <View style={styles.skillsCard}>
+            {provider.skills.length > 0 ? (
+              provider.skills.map((skill) => (
+                <View key={skill} style={styles.skillChip}>
+                  <Text style={styles.skillChipText}>{skill}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No skills added yet</Text>
+            )}
+          </View>
+
+          {/* ── Work Portfolio ── */}
+          <SectionHeader title="Work Portfolio" />
+          {provider.portfolio.length > 0 ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.portfolioScroll}>
+              {(showAllPortfolio ? provider.portfolio : provider.portfolio.slice(0, 3)).map((item) => (
+                <View key={item.id} style={styles.portfolioCard}>
+                  {item.imageUri ? (
+                    <Image source={{ uri: item.imageUri }} style={styles.portfolioImage} />
+                  ) : (
+                    <View style={styles.portfolioImagePlaceholder}>
+                      <Feather name="briefcase" size={30} color="rgba(255,255,255,0.25)" />
+                    </View>
+                  )}
+                  <View style={styles.portfolioInfo}>
+                    <Text style={styles.portfolioName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.portfolioDesc} numberOfLines={2}>{item.description}</Text>
+                  </View>
+                </View>
+              ))}
+              {provider.portfolio.length > 3 && (
+                <TouchableOpacity style={styles.portfolioViewAllCard} onPress={() => setShowAllPortfolio(v => !v)} activeOpacity={0.8}>
+                  <Ionicons name={showAllPortfolio ? 'chevron-back-circle-outline' : 'grid-outline'} size={30} color={COLORS.accentLight} />
+                  <Text style={styles.portfolioViewAllText}>{showAllPortfolio ? 'Show\nLess' : 'View\nAll'}</Text>
+                  {!showAllPortfolio && <Text style={styles.portfolioViewAllCount}>{provider.portfolio.length} works</Text>}
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          ) : (
+            <TouchableOpacity style={styles.emptyPortfolioBtn} onPress={() => router.push('/ProviderProfiledit')}>
+              <Feather name="plus-circle" size={22} color={COLORS.accentLight} />
+              <Text style={styles.emptyPortfolioBtnText}>Add your first work</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -275,8 +318,7 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerBack: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
   headerTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', letterSpacing: 0.3 },
@@ -298,45 +340,25 @@ const styles = StyleSheet.create({
     padding: 20, alignItems: 'center', marginBottom: 14,
     overflow: 'hidden', position: 'relative',
   },
-  heroCircle1: {
-    position: 'absolute', top: -30, right: -30,
-    width: 140, height: 140, borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  heroCircle2: {
-    position: 'absolute', bottom: -20, left: -20,
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
+  heroCircle1: { position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.04)' },
+  heroCircle2: { position: 'absolute', bottom: -20, left: -20, width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.03)' },
   editBtn: {
     position: 'absolute', top: 14, right: 14,
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#1A6BFF', borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 6, zIndex: 2,
+    backgroundColor: '#1A6BFF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, zIndex: 2,
   },
   editBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   avatarWrapper: { marginBottom: 14, position: 'relative' },
   avatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)' },
   avatarPlaceholder: {
     width: 96, height: 96, borderRadius: 48,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center', justifyContent: 'center',
   },
-  verifiedBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    backgroundColor: '#022373', borderRadius: 14, padding: 1,
-  },
-  heroNameRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 4,
-  },
+  verifiedBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#022373', borderRadius: 14, padding: 1 },
+  heroNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 4 },
   heroName: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', letterSpacing: 0.3 },
-  verifiedTag: {
-    backgroundColor: 'rgba(46,204,113,0.2)', borderRadius: 10,
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderWidth: 1, borderColor: 'rgba(46,204,113,0.4)',
-  },
+  verifiedTag: { backgroundColor: 'rgba(46,204,113,0.2)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(46,204,113,0.4)' },
   verifiedTagText: { color: '#2ECC71', fontSize: 11, fontWeight: '700' },
   heroCategory: { color: '#4DA3FF', fontSize: 14, fontWeight: '600', letterSpacing: 0.3, marginBottom: 8 },
   heroLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
@@ -361,4 +383,35 @@ const styles = StyleSheet.create({
   ratingBigNum: { fontSize: 48, fontWeight: '900', color: '#FFD700', lineHeight: 52 },
   ratingRightCol: { gap: 4 },
   ratingSubText: { color: 'rgba(255,255,255,0.45)', fontSize: 12, marginTop: 4 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 10 },
+  sectionLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
+  sectionTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  skillsCard: {
+    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', marginBottom: 4,
+  },
+  skillChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
+  skillChipText: { color: 'rgba(255,255,255,0.70)', fontSize: 13, fontWeight: '500' },
+  portfolioScroll: { gap: 12, paddingRight: 4 },
+  portfolioCard: { width: SCREEN_WIDTH * 0.65, backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
+  portfolioImage: { width: '100%', height: 130 },
+  portfolioImagePlaceholder: { width: '100%', height: 130, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' },
+  portfolioInfo: { padding: 12 },
+  portfolioName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', marginBottom: 4 },
+  portfolioDesc: { color: 'rgba(255,255,255,0.45)', fontSize: 12, lineHeight: 18 },
+  portfolioViewAllCard: {
+    width: SCREEN_WIDTH * 0.38, backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16, borderWidth: 1.5, borderColor: '#4DA3FF',
+    alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 20,
+  },
+  portfolioViewAllText: { color: '#4DA3FF', fontSize: 14, fontWeight: '800', textAlign: 'center', lineHeight: 20 },
+  portfolioViewAllCount: { color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: '600' },
+  emptyPortfolioBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 14,
+    borderWidth: 1, borderColor: '#4DA3FF', paddingVertical: 16,
+  },
+  emptyPortfolioBtnText: { color: '#4DA3FF', fontSize: 14, fontWeight: '700' },
+  emptyText: { color: 'rgba(255,255,255,0.70)', fontSize: 14, fontWeight: '600' },
 });
