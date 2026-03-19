@@ -83,7 +83,7 @@ export default function HomeScreen() {
 
   return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <LinearGradient colors={['#00C6FF', '#0072FF']} style={styles.container}>
+        <LinearGradient colors={['#00D9FF', '#0056D2']} style={styles.container}>
           <SafeAreaView style={styles.safeArea}>
 
             {/* --- TOP BAR --- */}
@@ -177,6 +177,7 @@ export default function HomeScreen() {
                 index={0}
                 snapPoints={snapPoints}
                 animatedIndex={animatedIndex}
+                containerStyle={{zIndex: 100, elevation:100}}
                 handleIndicatorStyle={{ backgroundColor: 'rgba(0,0,0,0.2)', width: 40 }}
                 backgroundStyle={{ backgroundColor: '#F0F8FF' }}
                 enableOverDrag={false}
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     zIndex: 20,
   },
-  contentContainer: { alignItems: 'center', marginTop: 60, zIndex: 10 },
+  contentContainer: { alignItems: 'center', marginTop: 60 },
   logoWrapper: {
     width: 100,
     height: 100,
