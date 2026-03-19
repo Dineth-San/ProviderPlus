@@ -17,6 +17,7 @@ import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import Animated, { Extrapolation, interpolate, useAnimatedStyle, useSharedValue, useAnimatedReaction, runOnJS } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { fetchAllCategories } from '../services/categoryService';
+import { useLanguage } from '../context/LanguageContext'; // ✅ ADDED
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,20 +27,19 @@ export default function HomeScreen() {
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const [categories, setCategories] = useState<any[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
-
   const [hasUnreadAlerts, setHasUnreadAlerts] = useState(true);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ['12%', '75%'], []);
   const animatedIndex = useSharedValue(0);
 
-  const [isSinhala, setIsSinhala] = useState(false);
-  const toggleLanguage = () => setIsSinhala(prev => !prev);
+  // ✅ REMOVED local isSinhala, toggleLanguage
+  // ✅ ADDED — get from context
+  const { isSinhala, toggleLanguage, t, isTranslating } = useLanguage();
 
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        console.log("Fetching categories for Home Screen...");
         const data = await fetchAllCategories();
         setCategories(data);
       } catch (error) {
@@ -52,15 +52,15 @@ export default function HomeScreen() {
   }, []);
 
   useAnimatedReaction(
-      () => animatedIndex.value,
-      (currentValue) => {
-        if (currentValue > 0.3) {
-          runOnJS(setSheetExpanded)(true);
-        } else {
-          runOnJS(setSheetExpanded)(false);
-        }
-      },
-      []
+    () => animatedIndex.value,
+    (currentValue) => {
+      if (currentValue > 0.3) {
+        runOnJS(setSheetExpanded)(true);
+      } else {
+        runOnJS(setSheetExpanded)(false);
+      }
+    },
+    []
   );
 
   const logoAnimatedStyle = useAnimatedStyle(() => {
@@ -82,148 +82,155 @@ export default function HomeScreen() {
   });
 
   return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <LinearGradient colors={['#00C6FF', '#0072FF']} style={styles.container}>
-          <SafeAreaView style={styles.safeArea}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <LinearGradient colors={['#00C6FF', '#0072FF']} style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
 
-            {/* --- TOP BAR --- */}
-            <View style={styles.topBar}>
-              <View style={{ width: 50 }} />
-              <View style={styles.topBarRight}>
+          {/* --- TOP BAR --- */}
+          <View style={styles.topBar}>
+            <View style={{ width: 50 }} />
+            <View style={styles.topBarRight}>
 
+              {/* LANGUAGE TOGGLE — same UI, now uses context */}
               <View style={styles.languageToggle}>
-              <Text style={[styles.langLabel, !isSinhala && styles.langLabelActive]}>ENG</Text>
-              <Text style={styles.langDivider}>|</Text>
-              <Text style={[styles.langLabel, isSinhala && styles.langLabelActive]}>සිං</Text>
-              <Switch
-                value={isSinhala}
-                onValueChange={toggleLanguage}
-                trackColor={{ false: 'rgba(255,255,255,0.3)', true: '#FF6B35' }}
-                thumbColor={isSinhala ? '#fff' : '#f0f0f0'}
-                ios_backgroundColor="rgba(255,255,255,0.3)"
-                style={styles.switchStyle}
-              />
-            </View>
+                <Text style={[styles.langLabel, !isSinhala && styles.langLabelActive]}>ENG</Text>
+                <Text style={styles.langDivider}>|</Text>
+                <Text style={[styles.langLabel, isSinhala && styles.langLabelActive]}>සිං</Text>
+                {/* ✅ loading spinner while translating */}
+                {isTranslating && (
+                  <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 4 }} />
+                )}
+                <Switch
+                  value={isSinhala}
+                  onValueChange={toggleLanguage}
+                  trackColor={{ false: 'rgba(255,255,255,0.3)', true: '#FF6B35' }}
+                  thumbColor={isSinhala ? '#fff' : '#f0f0f0'}
+                  ios_backgroundColor="rgba(255,255,255,0.3)"
+                  style={styles.switchStyle}
+                />
+              </View>
+
               <TouchableOpacity
                 style={styles.bellButton}
                 onPress={() => router.push('/Alerts')}
               >
                 <Text style={styles.bellIcon}>🔔</Text>
-                {hasUnreadAlerts && <View style={styles.redDot}/>}
+                {hasUnreadAlerts && <View style={styles.redDot} />}
               </TouchableOpacity>
             </View>
-            </View>
+          </View>
 
-
-            {/* --- MAIN CONTENT AREA --- */}
-            <View style={styles.contentContainer}>
-              <Animated.View style={[styles.logoWrapper, logoAnimatedStyle]}>
-                <Image
-                    source={require('../../assets/images/provider-logo.png')}
-                    style={styles.logoImage}
-                    resizeMode="contain"
-                />
-              </Animated.View>
-
-              <Animated.View style={[styles.searchWrapper, searchBarAnimatedStyle]}>
-                <View style={styles.searchBar}>
-                  <TextInput
-                      placeholder={'Who Are You Looking For?'}
-                      placeholderTextColor="rgba(255,255,255,0.7)"
-                      style={styles.searchInput}
-                  />
-                  <Text style={{ color: 'white', fontSize: 18 }}>🔎</Text>
-                </View>
-              </Animated.View>
-
-              <Animated.View
-                  style={[styles.toggleWrapper, fadeOutStyle]}
-                  pointerEvents={sheetExpanded ? 'none' : 'auto'}
-              >
-                <View style={styles.toggleContainer}>
-                  <TouchableOpacity
-                      style={[styles.toggleBtn, !isAiMode && styles.activeWhiteBtn]}
-                      onPress={() => setIsAiMode(false)}
-                  >
-                    <Text style={[styles.toggleText, !isAiMode && styles.activeBlueText]}>
-                      {'SEARCH YOURSELF'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                      style={[styles.toggleBtn, isAiMode && styles.activeOrangeBtn]}
-                      onPress={() => router.push('/AiPage')}
-                  >
-                    <Text style={[styles.toggleText, isAiMode && styles.activeWhiteText]}>
-                      {'LET US PLAN'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </Animated.View>
-            </View>
-
-            {/* --- SWIPE INDICATORS --- */}
-            <Animated.View
-                style={[styles.swipeIndicator, fadeOutStyle]}
-                pointerEvents={sheetExpanded ? 'none' : 'auto'}
-            >
-              <Text style={styles.arrowText}>^</Text>
-              <Text style={styles.swipeText}>{'SWIPE UP FOR CATEGORIES'}</Text>
+          {/* --- MAIN CONTENT AREA --- */}
+          <View style={styles.contentContainer}>
+            <Animated.View style={[styles.logoWrapper, logoAnimatedStyle]}>
+              <Image
+                source={require('../../assets/images/provider-logo.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </Animated.View>
 
-            {/* --- BOTTOM SHEET --- */}
-            <BottomSheet
-                ref={bottomSheetRef}
-                index={0}
-                snapPoints={snapPoints}
-                animatedIndex={animatedIndex}
-                handleIndicatorStyle={{ backgroundColor: 'rgba(0,0,0,0.2)', width: 40 }}
-                backgroundStyle={{ backgroundColor: '#F0F8FF' }}
-                enableOverDrag={false}
-                enablePanDownToClose={false}
-                maxDynamicContentSize={height * 0.55}
+            <Animated.View style={[styles.searchWrapper, searchBarAnimatedStyle]}>
+              <View style={styles.searchBar}>
+                <TextInput
+                  placeholder={t('Who Are You Looking For?')} // ✅
+                  placeholderTextColor="rgba(255,255,255,0.7)"
+                  style={styles.searchInput}
+                />
+                <Text style={{ color: 'white', fontSize: 18 }}>🔎</Text>
+              </View>
+            </Animated.View>
+
+            <Animated.View
+              style={[styles.toggleWrapper, fadeOutStyle]}
+              pointerEvents={sheetExpanded ? 'none' : 'auto'}
             >
-              <BottomSheetScrollView
-                  contentContainerStyle={styles.sheetContent}
-                  showsVerticalScrollIndicator={false}
-              >
-                <Text style={styles.sheetTitle}>{'SERVICE PROVIDER CATEGORIES'}</Text>
+              <View style={styles.toggleContainer}>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, !isAiMode && styles.activeWhiteBtn]}
+                  onPress={() => setIsAiMode(false)}
+                >
+                  {/* ✅ */}
+                  <Text style={[styles.toggleText, !isAiMode && styles.activeBlueText]}>
+                    {t('SEARCH YOURSELF')}
+                  </Text>
+                </TouchableOpacity>
 
-                {loadingCategories ? (
-                    <ActivityIndicator size="large" color="#0072FF" style={{ marginTop: 20 }} />
-                ) : (
-                    <View style={styles.grid}>
-                      {categories.map((cat) => (
-                          <TouchableOpacity
-                              key={cat._id}
-                              style={styles.card}
-                              activeOpacity={0.7}
-                              onPress={() => {
-                                router.push({
-                                  pathname: '/SelectProvider',
-                                  params: {
-                                    categorySlug: cat.slug,
-                                    categoryName: cat.name
-                                  }
-                                });
-                              }}
-                          >
-                            <Text style={{ fontSize: 32 }}>{cat.icon}</Text>
-                            <Text style={styles.cardText}>
-                              {cat.name}
-                            </Text>
-                          </TouchableOpacity>
-                      ))}
-                    </View>
-                )}
+                <TouchableOpacity
+                  style={[styles.toggleBtn, isAiMode && styles.activeOrangeBtn]}
+                  onPress={() => router.push('/AiPage')}
+                >
+                  {/* ✅ */}
+                  <Text style={[styles.toggleText, isAiMode && styles.activeWhiteText]}>
+                    {t('LET US PLAN')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
 
-                <View style={{ height: 100 }} />
-              </BottomSheetScrollView>
-            </BottomSheet>
+          {/* --- SWIPE INDICATORS --- */}
+          <Animated.View
+            style={[styles.swipeIndicator, fadeOutStyle]}
+            pointerEvents={sheetExpanded ? 'none' : 'auto'}
+          >
+            <Text style={styles.arrowText}>^</Text>
+            {/* ✅ */}
+            <Text style={styles.swipeText}>{t('SWIPE UP FOR CATEGORIES')}</Text>
+          </Animated.View>
 
-          </SafeAreaView>
-        </LinearGradient>
-      </GestureHandlerRootView>
+          {/* --- BOTTOM SHEET --- */}
+          <BottomSheet
+            ref={bottomSheetRef}
+            index={0}
+            snapPoints={snapPoints}
+            animatedIndex={animatedIndex}
+            handleIndicatorStyle={{ backgroundColor: 'rgba(0,0,0,0.2)', width: 40 }}
+            backgroundStyle={{ backgroundColor: '#F0F8FF' }}
+            enableOverDrag={false}
+            enablePanDownToClose={false}
+            maxDynamicContentSize={height * 0.55}
+          >
+            <BottomSheetScrollView
+              contentContainerStyle={styles.sheetContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* ✅ */}
+              <Text style={styles.sheetTitle}>{t('SERVICE PROVIDER CATEGORIES')}</Text>
+
+              {loadingCategories ? (
+                <ActivityIndicator size="large" color="#0072FF" style={{ marginTop: 20 }} />
+              ) : (
+                <View style={styles.grid}>
+                  {categories.map((cat) => (
+                    <TouchableOpacity
+                      key={cat._id}
+                      style={styles.card}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        router.push({
+                          pathname: '/SelectProvider',
+                          params: {
+                            categorySlug: cat.slug,
+                            categoryName: cat.name
+                          }
+                        });
+                      }}
+                    >
+                      <Text style={{ fontSize: 32 }}>{cat.icon}</Text>
+                      <Text style={styles.cardText}>{cat.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <View style={{ height: 100 }} />
+            </BottomSheetScrollView>
+          </BottomSheet>
+
+        </SafeAreaView>
+      </LinearGradient>
+    </GestureHandlerRootView>
   );
 }
 
@@ -263,9 +270,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  langLabelActive: {
-    color: '#fff',
-  },
+  langLabelActive: { color: '#fff' },
   langDivider: {
     color: 'rgba(255,255,255,0.4)',
     marginHorizontal: 6,
@@ -275,7 +280,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
-bellButton: {
+  bellButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -283,20 +288,18 @@ bellButton: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bellIcon: {
-    fontSize: 18,
-  },
+  bellIcon: { fontSize: 18 },
   redDot: {
-      position: 'absolute',
-      top: 8,
-      right: 8,
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-      backgroundColor: '#FF3B30',
-      borderWidth: 1.5,
-      borderColor: 'rgba(255,255,255,0.15)',
-    },
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FF3B30',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
   logoImage: { width: '100%', height: '100%' },
   searchWrapper: { marginTop: 30 },
   searchBar: {
