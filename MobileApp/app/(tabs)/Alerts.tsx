@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Switch, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
-import {useRouter} from 'expo-router';
-import { Switch } from 'react-native';
-
-
+import { useRouter } from 'expo-router';
+import { useLanguage } from '../context/LanguageContext'; // ✅ ADDED
 
 const { width } = Dimensions.get('window');
 
-// Sample notifications data
 const NOTIFICATIONS = [
   {
     id: 1,
@@ -75,7 +72,7 @@ const NOTIFICATIONS = [
     icon: '🎁',
     read: true,
   },
-{
+  {
     id: 8,
     title: 'New Provider Available',
     message: 'A new LED Wall Provider has joined in your area',
@@ -105,33 +102,27 @@ const NOTIFICATIONS = [
 ];
 
 export default function Alerts() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState(NOTIFICATIONS);
 
-  // Mark notification as read
+  // ✅ REMOVED local isSinhala, toggleLanguage
+  // ✅ ADDED — get from context
+  const { isSinhala, toggleLanguage, t, isTranslating } = useLanguage();
+
   const markAsRead = (id: number) => {
     setNotifications(prev =>
-      prev.map(notif =>
-        notif.id === id ? { ...notif, read: true } : notif
-      )
+      prev.map(notif => notif.id === id ? { ...notif, read: true } : notif)
     );
   };
 
-  // Get color based on notification type
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'success':
-        return '#34C759';
-      case 'warning':
-        return '#FF9500';
-      case 'promo':
-        return '#E37322';
-      default:
-        return '#0072FF';
+      case 'success': return '#34C759';
+      case 'warning': return '#FF9500';
+      case 'promo':   return '#E37322';
+      default:        return '#0072FF';
     }
   };
-const router = useRouter();
-const [isSinhala, setIsSinhala] = useState(false);
-const toggleLanguage = () => setIsSinhala(prev => !prev);
 
   return (
     <LinearGradient colors={['#00C6FF', '#0072FF']} style={styles.container}>
@@ -144,12 +135,17 @@ const toggleLanguage = () => setIsSinhala(prev => !prev);
               <Text style={styles.backArrow}>‹</Text>
             </TouchableOpacity>
 
-            <Text style={styles.headerTitle}>Notifications</Text>
+            {/* ✅ */}
+            <Text style={styles.headerTitle}>{t('Notifications')}</Text>
 
             <View style={styles.languageToggle}>
               <Text style={[styles.langLabel, !isSinhala && styles.langLabelActive]}>ENG</Text>
               <Text style={styles.langDivider}>|</Text>
               <Text style={[styles.langLabel, isSinhala && styles.langLabelActive]}>සිං</Text>
+              {/* ✅ loading spinner */}
+              {isTranslating && (
+                <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 4 }} />
+              )}
               <Switch
                 value={isSinhala}
                 onValueChange={toggleLanguage}
@@ -161,15 +157,14 @@ const toggleLanguage = () => setIsSinhala(prev => !prev);
             </View>
           </View>
 
-          {/* Separator */}
           <View style={styles.separator} />
 
-          {/* Mark all read — below separator */}
           <TouchableOpacity
             style={styles.markAllReadBtn}
             onPress={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
           >
-            <Text style={styles.markAllRead}>Mark all read</Text>
+            {/* ✅ */}
+            <Text style={styles.markAllRead}>{t('Mark all read')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -187,47 +182,35 @@ const toggleLanguage = () => setIsSinhala(prev => !prev);
             >
               <BlurView intensity={30} experimentalBlurMethod="dimezisBlurView" tint="dark" style={styles.notificationCard}>
 
-
-
-                {/* Unread indicator */}
                 {!notification.read && (
-                  <View
-                    style={[
-                      styles.unreadIndicator,
-                      { backgroundColor: getTypeColor(notification.type) }
-                    ]}
-                  />
+                  <View style={[styles.unreadIndicator, { backgroundColor: getTypeColor(notification.type) }]} />
                 )}
 
-                {/* Content */}
                 <View style={styles.cardContent}>
-                  {/* Icon */}
                   <View style={styles.iconContainer}>
                     <Text style={styles.icon}>{notification.icon}</Text>
                   </View>
 
-                  {/* Text Content */}
                   <View style={styles.textContent}>
                     <View style={styles.titleRow}>
-                      <Text style={[
-                        styles.title,
-                        !notification.read && styles.titleUnread
-                      ]}>
-                        {notification.title}
+                      {/* ✅ */}
+                      <Text style={[styles.title, !notification.read && styles.titleUnread]}>
+                        {t(notification.title)}
                       </Text>
-                      <Text style={styles.time}>{notification.time}</Text>
+                      {/* ✅ */}
+                      <Text style={styles.time}>{t(notification.time)}</Text>
                     </View>
-
+                    {/* ✅ */}
                     <Text style={styles.message} numberOfLines={2}>
-                      {notification.message}
+                      {t(notification.message)}
                     </Text>
                   </View>
                 </View>
+
               </BlurView>
             </TouchableOpacity>
           ))}
 
-          {/* Empty space for bottom tab bar */}
           <View style={{ height: 100 }} />
         </ScrollView>
 
@@ -237,14 +220,8 @@ const toggleLanguage = () => setIsSinhala(prev => !prev);
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-
-  // Header
+  container: { flex: 1 },
+  safeArea: { flex: 1 },
   header: {
     paddingHorizontal: 20,
     paddingTop: 14,
@@ -303,17 +280,11 @@ const styles = StyleSheet.create({
   langLabelActive: { color: 'white' },
   langDivider:     { color: 'rgba(255,255,255,0.4)', marginHorizontal: 2 },
   switchStyle:     { marginLeft: 6, transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
-
-  // Scroll View
-  scrollView: {
-    flex: 1,
-  },
+  scrollView: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 15,
     paddingTop: 5,
   },
-
-  // Notification Card
   notificationCard: {
     marginBottom: 12,
     borderRadius: 20,
@@ -324,7 +295,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    //elevation: 3,
   },
   unreadIndicator: {
     position: 'absolute',
@@ -335,8 +305,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     zIndex: 10,
   },
-
-  // Card Content
   cardContent: {
     flexDirection: 'row',
     padding: 15,
@@ -350,14 +318,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  icon: {
-    fontSize: 24,
-  },
-
-  // Text Content
-  textContent: {
-    flex: 1,
-  },
+  icon: { fontSize: 24 },
+  textContent: { flex: 1 },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -371,18 +333,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 10,
   },
-  titleUnread: {
-    fontWeight: '700',
-    color: 'white',
-  },
-  time: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontWeight: '500',
-  },
-  message: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.75)',
-    lineHeight: 20,
-  },
+  titleUnread: { fontWeight: '700', color: 'white' },
+  time: { fontSize: 12, color: 'rgba(255, 255, 255, 0.7)', fontWeight: '500' },
+  message: { fontSize: 14, color: 'rgba(255, 255, 255, 0.75)', lineHeight: 20 },
 });
