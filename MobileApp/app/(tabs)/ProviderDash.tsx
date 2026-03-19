@@ -12,6 +12,7 @@ import {
   StatusBar,
   RefreshControl,
   ViewStyle,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -20,10 +21,9 @@ import {
   fetchAIOverview,
   fetchDashboardData,
 } from '../services/dashboardService';
+import { useLanguage } from '../context/LanguageContext'; // ✅ ADDED
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// ─── Types ────────────────────────────────────────────────────
 
 interface ExpandableCardProps {
   icon: string;
@@ -40,6 +40,7 @@ interface AIOverviewCardProps {
   loading: boolean;
   error: boolean;
   onRetry: () => void;
+  t: (text: string) => string; // ✅ pass t() into sub-components
 }
 
 interface RouteParams {
@@ -54,8 +55,6 @@ interface ProviderDashboardProps {
   navigation?: any;
   route?: RouteParams;
 }
-
-// ─── Greeting Logic ───────────────────────────────────────────
 
 const getGreeting = (): string => {
   const hour = new Date().getHours();
@@ -73,48 +72,25 @@ const getGreetingEmoji = (): string => {
   return '🌙';
 };
 
-// ─── Expandable Card Component ────────────────────────────────
-
+// ─── Expandable Card ──────────────────────────────────────────
 const ExpandableCard: React.FC<ExpandableCardProps> = ({
-  icon,
-  title,
-  value,
-  subtitle,
-  expandedContent,
-  onPress,
-  style,
+  icon, title, value, subtitle, expandedContent, onPress, style,
 }) => {
   const [expanded, setExpanded] = useState<boolean>(false);
   const animHeight = useRef(new Animated.Value(0)).current;
   const animScale = useRef(new Animated.Value(1)).current;
 
   const toggleExpand = (): void => {
-    if (onPress) {
-      onPress();
-      return;
-    }
+    if (onPress) { onPress(); return; }
     const toExpanded = !expanded;
     setExpanded(toExpanded);
-
     Animated.parallel([
-      Animated.spring(animHeight, {
-        toValue: toExpanded ? 1 : 0,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: false,
-      }),
-      Animated.spring(animScale, {
-        toValue: toExpanded ? 1.02 : 1,
-        friction: 8,
-        useNativeDriver: true,
-      }),
+      Animated.spring(animHeight, { toValue: toExpanded ? 1 : 0, friction: 8, tension: 40, useNativeDriver: false }),
+      Animated.spring(animScale, { toValue: toExpanded ? 1.02 : 1, friction: 8, useNativeDriver: true }),
     ]).start();
   };
 
-  const expandedHeight = animHeight.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 100],
-  });
+  const expandedHeight = animHeight.interpolate({ inputRange: [0, 1], outputRange: [0, 100] });
 
   return (
     <Animated.View style={[{ transform: [{ scale: animScale }] }, style]}>
@@ -135,10 +111,7 @@ const ExpandableCard: React.FC<ExpandableCardProps> = ({
             {subtitle ? <Text style={styles.cardSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
           </View>
         </View>
-
-        <Animated.View
-          style={[styles.expandedSection, { height: expandedHeight, opacity: animHeight }]}
-        >
+        <Animated.View style={[styles.expandedSection, { height: expandedHeight, opacity: animHeight }]}>
           {expanded && (
             <View style={styles.expandedContentInner}>
               <View style={styles.divider} />
@@ -152,8 +125,7 @@ const ExpandableCard: React.FC<ExpandableCardProps> = ({
 };
 
 // ─── AI Overview Card ─────────────────────────────────────────
-
-const AIOverviewCard: React.FC<AIOverviewCardProps> = ({ overview, loading, error, onRetry }) => {
+const AIOverviewCard: React.FC<AIOverviewCardProps> = ({ overview, loading, error, onRetry, t }) => {
   const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
@@ -173,9 +145,9 @@ const AIOverviewCard: React.FC<AIOverviewCardProps> = ({ overview, loading, erro
     <View style={styles.aiCard}>
       <View style={styles.aiCardHeader}>
         <Text style={styles.aiCardIcon}>✨</Text>
-        <Text style={styles.aiCardTitle}>AI Overview</Text>
+        {/* ✅ */}
+        <Text style={styles.aiCardTitle}>{t('AI Overview')}</Text>
       </View>
-
       {loading ? (
         <View style={styles.aiLoadingContainer}>
           <Animated.View style={[styles.aiSkeletonLine, { opacity: pulseAnim, width: '90%' }]} />
@@ -184,9 +156,10 @@ const AIOverviewCard: React.FC<AIOverviewCardProps> = ({ overview, loading, erro
         </View>
       ) : error ? (
         <View style={styles.aiErrorContainer}>
-          <Text style={styles.aiErrorText}>Unable to load insights right now.</Text>
+          {/* ✅ */}
+          <Text style={styles.aiErrorText}>{t('Unable to load insights right now.')}</Text>
           <TouchableOpacity onPress={onRetry} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Tap to Retry</Text>
+            <Text style={styles.retryButtonText}>{t('Tap to Retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -196,14 +169,16 @@ const AIOverviewCard: React.FC<AIOverviewCardProps> = ({ overview, loading, erro
   );
 };
 
-// ─── Main Dashboard Screen ────────────────────────────────────
-
+// ─── Main Dashboard ───────────────────────────────────────────
 const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route }) => {
   const providerName: string = route?.params?.providerName || 'Nimal Chandra';
   const providerId: string = route?.params?.providerId || 'provider_001';
   const jobRole: string = route?.params?.jobRole || 'Plumber';
 
-  const [isSinhala, setIsSinhala] = useState<boolean>(false);
+  // ✅ REMOVED local isSinhala, toggleLanguage
+  // ✅ ADDED — get from context
+  const { isSinhala, toggleLanguage, t, isTranslating } = useLanguage();
+
   const [aiOverview, setAiOverview] = useState<string>('');
   const [aiLoading, setAiLoading] = useState<boolean>(true);
   const [aiError, setAiError] = useState<boolean>(false);
@@ -228,7 +203,6 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
     ]).start();
   }, [fadeAnim, slideAnim]);
 
-  // ── Load AI Overview via service ──
   const loadAIOverview = useCallback(async (): Promise<void> => {
     setAiLoading(true);
     setAiError(false);
@@ -243,41 +217,29 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
       });
       setAiOverview(overview);
     } catch (err) {
-      console.error('AI Overview fetch error:', err);
       setAiError(true);
     } finally {
       setAiLoading(false);
     }
   }, [providerId, providerName, jobRole, dashboardData]);
 
-  useEffect(() => {
-    loadAIOverview();
-  }, [loadAIOverview]);
+  useEffect(() => { loadAIOverview(); }, [loadAIOverview]);
 
-  // ── Load Dashboard Stats via service ──
   const loadDashboardData = useCallback(async (): Promise<void> => {
     try {
       const data = await fetchDashboardData(providerId);
       setDashboardData(data);
     } catch (err) {
       console.log('Dashboard data fetch error:', err);
-      // Keeps the default/hardcoded values — no crash
     }
   }, [providerId]);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+  useEffect(() => { loadDashboardData(); }, [loadDashboardData]);
 
-  // ── Pull to Refresh ──
   const onRefresh = async (): Promise<void> => {
     setRefreshing(true);
     await Promise.all([loadAIOverview(), loadDashboardData()]);
     setRefreshing(false);
-  };
-
-  const toggleLanguage = (): void => {
-    setIsSinhala(!isSinhala);
   };
 
   const greeting = getGreeting();
@@ -309,6 +271,10 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
                 <Text style={[styles.langLabel, !isSinhala && styles.langLabelActive]}>ENG</Text>
                 <Text style={styles.langDivider}>|</Text>
                 <Text style={[styles.langLabel, isSinhala && styles.langLabelActive]}>සිං</Text>
+                {/* ✅ loading spinner */}
+                {isTranslating && (
+                  <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 4 }} />
+                )}
                 <Switch
                   value={isSinhala}
                   onValueChange={toggleLanguage}
@@ -335,14 +301,12 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
 
           {/* ── Welcome Section ── */}
           <Animated.View
-            style={[
-              styles.welcomeSection,
-              { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-            ]}
+            style={[styles.welcomeSection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
           >
-            <Text style={styles.dashboardLabel}>Provider Dashboard</Text>
+            {/* ✅ */}
+            <Text style={styles.dashboardLabel}>{t('Provider Dashboard')}</Text>
             <Text style={styles.greetingText}>
-              {greeting}, {emoji}
+              {t(greeting)}, {emoji}
             </Text>
             <Text style={styles.providerName}>{providerName}</Text>
           </Animated.View>
@@ -354,6 +318,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
               loading={aiLoading}
               error={aiError}
               onRetry={loadAIOverview}
+              t={t} // ✅ pass t() into AI card
             />
           </Animated.View>
 
@@ -362,21 +327,21 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
             <View style={styles.cardRow}>
               <ExpandableCard
                 icon="✅"
-                title="Completed Jobs"
+                title={t('Completed Jobs')} // ✅
                 value={dashboardData.completedJobs}
-                subtitle="Today"
+                subtitle={t('Today')} // ✅
                 onPress={() => navigation?.navigate?.('CompletedJobs')}
                 style={styles.cardWrapper}
               />
               <ExpandableCard
                 icon="📋"
-                title="Upcoming Jobs"
+                title={t('Upcoming Jobs')} // ✅
                 value={dashboardData.upcomingJobs}
-                subtitle="Scheduled"
+                subtitle={t('Scheduled')} // ✅
                 expandedContent={
                   <View>
-                    <Text style={styles.expandedText}>Next job in 2 hours</Text>
-                    <Text style={styles.expandedText}>Tap to see full schedule →</Text>
+                    <Text style={styles.expandedText}>{t('Next job in 2 hours')}</Text>
+                    <Text style={styles.expandedText}>{t('Tap to see full schedule →')}</Text>
                   </View>
                 }
                 style={styles.cardWrapper}
@@ -386,25 +351,25 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
             <View style={styles.cardRow}>
               <ExpandableCard
                 icon="🔔"
-                title="Notifications"
+                title={t('Notifications')} // ✅
                 value={dashboardData.notifications}
-                subtitle="New"
+                subtitle={t('New')} // ✅
                 expandedContent={
                   <View>
-                    <Text style={styles.expandedText}>• New job request nearby</Text>
-                    <Text style={styles.expandedText}>Tap to view all →</Text>
+                    <Text style={styles.expandedText}>{t('• New job request nearby')}</Text>
+                    <Text style={styles.expandedText}>{t('Tap to view all →')}</Text>
                   </View>
                 }
                 style={styles.cardWrapper}
               />
               <ExpandableCard
                 icon="⭐"
-                title="Rating"
+                title={t('Rating')} // ✅
                 value={dashboardData.rating}
                 subtitle={`(${dashboardData.totalReviews})`}
                 expandedContent={
                   <View>
-                    <Text style={styles.expandedText}>Top rated in your area!</Text>
+                    <Text style={styles.expandedText}>{t('Top rated in your area!')}</Text>
                     <Text style={styles.expandedText}>5★: 18 | 4★: 4 | 3★: 2</Text>
                   </View>
                 }
@@ -415,26 +380,26 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
             <View style={styles.cardRow}>
               <ExpandableCard
                 icon="💬"
-                title="Responses"
+                title={t('Responses')} // ✅
                 value={dashboardData.customerResponses}
-                subtitle="Pending"
+                subtitle={t('Pending')} // ✅
                 expandedContent={
                   <View>
-                    <Text style={styles.expandedText}>3 awaiting your reply</Text>
-                    <Text style={styles.expandedText}>Avg response time: 12min</Text>
+                    <Text style={styles.expandedText}>{t('3 awaiting your reply')}</Text>
+                    <Text style={styles.expandedText}>{t('Avg response time: 12min')}</Text>
                   </View>
                 }
                 style={styles.cardWrapper}
               />
               <ExpandableCard
                 icon="🔄"
-                title="Re-Schedules"
+                title={t('Re-Schedules')} // ✅
                 value={dashboardData.reSchedules}
-                subtitle="View All"
+                subtitle={t('View All')} // ✅
                 expandedContent={
                   <View>
-                    <Text style={styles.expandedText}>2 pending approval</Text>
-                    <Text style={styles.expandedText}>10 completed this month</Text>
+                    <Text style={styles.expandedText}>{t('2 pending approval')}</Text>
+                    <Text style={styles.expandedText}>{t('10 completed this month')}</Text>
                   </View>
                 }
                 style={styles.cardWrapper}
@@ -442,7 +407,6 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
             </View>
           </View>
 
-          {/* Bottom spacing for your existing navbar */}
           <View style={{ height: 40 }} />
         </ScrollView>
       </LinearGradient>
@@ -450,36 +414,13 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  logoContainer: {
-    width: 44,
-    height: 44,
-  },
-  logo: {
-    width: 44,
-    height: 44,
-  },
-  topBarRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+  container: { flex: 1 },
+  scrollContent: { paddingTop: 50, paddingHorizontal: 16, paddingBottom: 20 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  logoContainer: { width: 44, height: 44 },
+  logo: { width: 44, height: 44 },
+  topBarRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   languageToggle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -488,205 +429,71 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  langLabel: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  langLabelActive: {
-    color: '#fff',
-  },
-  langDivider: {
-    color: 'rgba(255,255,255,0.4)',
-    marginHorizontal: 6,
-    fontSize: 12,
-  },
-  switchStyle: {
-    marginLeft: 6,
-    transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
-  },
+  langLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600' },
+  langLabelActive: { color: '#fff' },
+  langDivider: { color: 'rgba(255,255,255,0.4)', marginHorizontal: 6, fontSize: 12 },
+  switchStyle: { marginLeft: 6, transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
   bellButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
-  bellIcon: {
-    fontSize: 18,
-  },
+  bellIcon: { fontSize: 18 },
   notifBadge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: '#FF3B30',
-    borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
+    position: 'absolute', top: 2, right: 2,
+    backgroundColor: '#FF3B30', borderRadius: 8,
+    minWidth: 16, height: 16,
+    justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4,
   },
-  notifBadgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  welcomeSection: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
+  notifBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  welcomeSection: { alignItems: 'center', marginBottom: 24 },
   dashboardLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
-    fontWeight: '500',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginBottom: 4,
+    color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: '500',
+    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4,
   },
-  greetingText: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  providerName: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 18,
-    fontWeight: '500',
-  },
+  greetingText: { color: '#fff', fontSize: 28, fontWeight: '800', marginBottom: 2 },
+  providerName: { color: 'rgba(255,255,255,0.85)', fontSize: 18, fontWeight: '500' },
   aiCard: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16,
+    padding: 18, marginBottom: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
   },
-  aiCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  aiCardIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  aiCardTitle: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    flex: 1,
-  },
-  aiOverviewText: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 14,
-    lineHeight: 22,
-    fontWeight: '400',
-  },
-  aiLoadingContainer: {
-    gap: 10,
-  },
-  aiSkeletonLine: {
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  aiErrorContainer: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  aiErrorText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  retryButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  cardsGrid: {
-    gap: 12,
-  },
-  cardRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  cardWrapper: {
-    flex: 1,
-  },
+  aiCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  aiCardIcon: { fontSize: 20, marginRight: 8 },
+  aiCardTitle: { color: '#fff', fontSize: 17, fontWeight: '700', flex: 1 },
+  aiOverviewText: { color: 'rgba(255,255,255,0.9)', fontSize: 14, lineHeight: 22, fontWeight: '400' },
+  aiLoadingContainer: { gap: 10 },
+  aiSkeletonLine: { height: 12, borderRadius: 6, backgroundColor: 'rgba(255,255,255,0.15)' },
+  aiErrorContainer: { alignItems: 'center', paddingVertical: 8 },
+  aiErrorText: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginBottom: 8 },
+  retryButton: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8 },
+  retryButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  cardsGrid: { gap: 12 },
+  cardRow: { flexDirection: 'row', gap: 12 },
+  cardWrapper: { flex: 1 },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    overflow: 'hidden',
-    minHeight: 110,
+    backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 14,
+    padding: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    overflow: 'hidden', minHeight: 110,
   },
-  cardInner: {
-    alignItems: 'flex-start',
-  },
+  cardInner: { alignItems: 'flex-start' },
   cardIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 36, height: 36, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 10,
   },
-  cardIcon: {
-    fontSize: 18,
-  },
+  cardIcon: { fontSize: 18 },
   cardTitle: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
+    color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600',
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
   },
-  cardValueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 5,
-  },
-  cardValue: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  cardSubtitle: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  expandedSection: {
-    overflow: 'hidden',
-  },
-  expandedContentInner: {
-    paddingTop: 4,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    marginVertical: 8,
-  },
-  expandedText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
-    lineHeight: 20,
-    fontWeight: '400',
-  },
+  cardValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
+  cardValue: { color: '#fff', fontSize: 24, fontWeight: '800' },
+  cardSubtitle: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '500' },
+  expandedSection: { overflow: 'hidden' },
+  expandedContentInner: { paddingTop: 4 },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: 8 },
+  expandedText: { color: 'rgba(255,255,255,0.8)', fontSize: 12, lineHeight: 20, fontWeight: '400' },
 });
 
 export default ProviderDashboard;
