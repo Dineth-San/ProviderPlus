@@ -1,4 +1,3 @@
-"use no memo";
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
@@ -72,6 +71,14 @@ const MOCK_CHATS = [
     id: '8',
     customerName: 'Ruwan Jayasuriya',
     lastMessage: 'Hi! Nimal Are You Available Tomorrow At 4 PM?',
+    time: 'Sun',
+    unread: false,
+    unreadCount: 0,
+  },
+{
+    id: '9',
+    customerName: 'Sandun Welivita',
+    lastMessage: 'Are You Available Tomorrow At 4 PM?',
     time: 'Sun',
     unread: false,
     unreadCount: 0,
