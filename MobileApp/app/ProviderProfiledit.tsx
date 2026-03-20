@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   StatusBar,
   Switch,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,12 +25,20 @@ import * as DocumentPicker from 'expo-document-picker';
 import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LOCATION_PICKER_RESULT_KEY } from './LocationPicker';
+import {
+  getMyProfile,
+  updateMyProfile,
+  uploadProfileImage,
+  uploadPortfolioImages,
+  uploadIdentityDocument,
+} from './services/providerProfileService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AttachmentFile {
   name: string;
   uri: string;
+  mimeType?: string;
 }
 
 interface WorkItem {
@@ -44,6 +53,11 @@ interface SelectedLocation {
   address: string;
 }
 
+interface CategoryOption {
+  id: string;
+  name: string;
+}
+
 interface InputFieldProps {
   label?: string;
   value: string;
@@ -51,6 +65,7 @@ interface InputFieldProps {
   placeholder?: string;
   multiline?: boolean;
   keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric';
+  editable?: boolean;
 }
 
 interface SectionHeaderProps {
@@ -75,10 +90,8 @@ interface WorkCardProps {
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
 const COLORS = {
-  // Gradient colours — used on background
   gradientTop: '#1086b5',
   gradientBot: '#022373',
-
   card: 'rgba(255,255,255,0.10)',
   cardBorder: 'rgba(255,255,255,0.18)',
   inputBg: 'rgba(255,255,255,0.08)',
@@ -97,13 +110,7 @@ const COLORS = {
   danger: '#FF4D4F',
 };
 
-// ─── Static Data ──────────────────────────────────────────────────────────────
-
-const CATEGORIES: string[] = [
-  'Plumbing', 'Electrical', 'Carpentry', 'Painting',
-  'Cleaning', 'Landscaping', 'HVAC & Air Conditioning',
-  'IT & Tech Support', 'Interior Design', 'Other',
-];
+// ─── Static Skills List ───────────────────────────────────────────────────────
 
 const PREDEFINED_SKILLS: string[] = [
   'Plumbing', 'Electrical', 'Welding', 'Carpentry',
@@ -116,12 +123,12 @@ const PREDEFINED_SKILLS: string[] = [
 
 const InputField: React.FC<InputFieldProps> = ({
   label, value, onChangeText, placeholder,
-  multiline = false, keyboardType = 'default',
+  multiline = false, keyboardType = 'default', editable = true,
 }) => (
   <View style={styles.inputWrapper}>
     {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
     <TextInput
-      style={[styles.input, multiline && styles.inputMultiline]}
+      style={[styles.input, multiline && styles.inputMultiline, !editable && styles.inputDisabled]}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder ?? label}
@@ -130,6 +137,7 @@ const InputField: React.FC<InputFieldProps> = ({
       numberOfLines={multiline ? 4 : 1}
       keyboardType={keyboardType}
       textAlignVertical={multiline ? 'top' : 'center'}
+      editable={editable}
     />
   </View>
 );
@@ -182,7 +190,7 @@ const WorkCard: React.FC<WorkCardProps> = ({ index, work, onChange, onRemove }) 
               const file = result.assets[0];
               onChange(index, 'attachments', [
                 ...work.attachments,
-                { name: `photo_${Date.now()}.jpg`, uri: file.uri },
+                { name: `photo_${Date.now()}.jpg`, uri: file.uri, mimeType: 'image/jpeg' },
               ]);
             }
           },
@@ -202,8 +210,9 @@ const WorkCard: React.FC<WorkCardProps> = ({ index, work, onChange, onRemove }) 
             });
             if (!result.canceled) {
               const files: AttachmentFile[] = result.assets.map((a) => ({
-                name: a.fileName ?? `image_${Date.now()}`,
+                name: a.fileName ?? `image_${Date.now()}.jpg`,
                 uri: a.uri,
+                mimeType: a.mimeType ?? 'image/jpeg',
               }));
               onChange(index, 'attachments', [...work.attachments, ...files]);
             }
@@ -222,6 +231,7 @@ const WorkCard: React.FC<WorkCardProps> = ({ index, work, onChange, onRemove }) 
                 const files: AttachmentFile[] = result.assets.map((a) => ({
                   name: a.name,
                   uri: a.uri,
+                  mimeType: a.mimeType ?? 'application/octet-stream',
                 }));
                 onChange(index, 'attachments', [...work.attachments, ...files]);
               }
@@ -257,11 +267,7 @@ const WorkCard: React.FC<WorkCardProps> = ({ index, work, onChange, onRemove }) 
         />
       </View>
 
-      <TouchableOpacity
-        style={styles.attachmentField}
-        onPress={handleAttachment}
-        activeOpacity={0.8}
-      >
+      <TouchableOpacity style={styles.attachmentField} onPress={handleAttachment} activeOpacity={0.8}>
         <View>
           <Text style={styles.attachmentLabel}>Attachments</Text>
           {work.attachments.length === 0 ? (
@@ -276,11 +282,7 @@ const WorkCard: React.FC<WorkCardProps> = ({ index, work, onChange, onRemove }) 
       </TouchableOpacity>
 
       {work.attachments.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.attachmentPreviewRow}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.attachmentPreviewRow}>
           {work.attachments.map((file, fi) => (
             <View key={fi} style={styles.attachmentChip}>
               <Feather name="file" size={12} color={COLORS.accentLight} />
@@ -319,38 +321,111 @@ const WorkCard: React.FC<WorkCardProps> = ({ index, work, onChange, onRemove }) 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ProviderProfiledit(): React.JSX.Element {
+  // ── Screen-level state ────────────────────────────────────────────────────
+  const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
+  const [isSaving, setIsSaving]                 = useState<boolean>(false);
+
+  // ── Personal Info ─────────────────────────────────────────────────────────
   const [name, setName]                 = useState<string>('');
-  const [email, setEmail]               = useState<string>('');
+  const [email, setEmail]               = useState<string>('');  // display only — not editable
   const [contact, setContact]           = useState<string>('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileImageChanged, setProfileImageChanged] = useState<boolean>(false);
 
-  // NIC — attachment only (no text field)
+  // NIC — attachment only
   const [nicAttachments, setNicAttachments] = useState<AttachmentFile[]>([]);
 
-  const [category, setCategory]                         = useState<string>('');
+  // ── Service Info ──────────────────────────────────────────────────────────
+  // category stores the display name; categoryId stores the actual MongoDB ObjectId
+  const [category, setCategory]         = useState<string>('');
+  const [categoryId, setCategoryId]     = useState<string>('');
   const [categoryModalVisible, setCategoryModalVisible] = useState<boolean>(false);
-  const [serviceDescription, setServiceDescription]     = useState<string>('');
+  // Categories fetched from the backend — falls back to empty until loaded
+  const [categories, setCategories]     = useState<CategoryOption[]>([]);
+  const [serviceDescription, setServiceDescription] = useState<string>('');
 
+  // ── Skills ────────────────────────────────────────────────────────────────
   const [selectedSkills, setSelectedSkills]     = useState<string[]>([]);
   const [customSkills, setCustomSkills]         = useState<string[]>([]);
   const [customSkillInput, setCustomSkillInput] = useState<string>('');
   const [showSkillInput, setShowSkillInput]     = useState<boolean>(false);
 
-  const [location, setLocation] = useState<SelectedLocation | null>(null);
+  // ── Location + BR cert ────────────────────────────────────────────────────
+  const [location, setLocation]                 = useState<SelectedLocation | null>(null);
   const [brCertAttachments, setBrCertAttachments] = useState<AttachmentFile[]>([]);
 
-  // ── Validation errors ─────────────────────────────────────────────────────
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
+  // ── Portfolio ─────────────────────────────────────────────────────────────
   const [works, setWorks] = useState<WorkItem[]>([
     { name: '', attachments: [], description: '' },
   ]);
 
+  // ── Validation errors ─────────────────────────────────────────────────────
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   // ── Language toggle ───────────────────────────────────────────────────────
   const [isSinhala, setIsSinhala] = useState<boolean>(false);
-  const toggleLanguage = () => setIsSinhala(v => !v);
 
-  // ── Read LocationPicker result on focus ───────────────────────────────────
+  // ── STEP 1: Load existing profile on mount ────────────────────────────────
+  // Calls GET /api/provider/me/profile and pre-fills all fields
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getMyProfile();
+
+        // Personal info
+        setName(data.name);
+        setEmail(data.email);
+        setContact(data.phone_number);
+        if (data.profile_image) setProfileImage(data.profile_image);
+
+        // Category
+        setCategory(data.category.name);
+        setCategoryId(data.category.id);
+
+        // Service description
+        setServiceDescription(data.description);
+
+        // Skills — split tags into predefined and custom
+        const predefinedSet = new Set(PREDEFINED_SKILLS);
+        const existingPredefined = data.tags.filter(t => predefinedSet.has(t));
+        const existingCustom     = data.tags.filter(t => !predefinedSet.has(t));
+        setSelectedSkills(existingPredefined);
+        setCustomSkills(existingCustom);
+
+        // Location
+        if (data.location?.coordinates) {
+          const [lng, lat] = data.location.coordinates;
+          setLocation({ latitude: lat, longitude: lng, address: '' });
+        }
+
+      } catch (e: any) {
+        Alert.alert(
+          'Could not load profile',
+          e?.response?.data?.detail ?? e?.message ?? 'Please check your connection and try again.',
+        );
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    })();
+  }, []);
+
+  // ── STEP 2: Fetch categories from backend for the dropdown ────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const { default: apiClient } = await import('./services/apiClient');
+        const res = await apiClient.get('category-search/categories');
+        // res.data is an array of { id, name, slug, ... }
+        setCategories(
+          res.data.map((c: any) => ({ id: String(c.id ?? c._id), name: c.name }))
+        );
+      } catch {
+        // Silent — the modal will be empty, provider can still see their existing category
+      }
+    })();
+  }, []);
+
+  // ── Read LocationPicker result when screen comes back into focus ───────────
   useFocusEffect(
     useCallback(() => {
       (async () => {
@@ -369,7 +444,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
     }, [])
   );
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // ── Profile image picker ──────────────────────────────────────────────────
 
   const handlePickProfileImage = async (): Promise<void> => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -380,8 +455,13 @@ export default function ProviderProfiledit(): React.JSX.Element {
       aspect: [1, 1],
       quality: 0.9,
     });
-    if (!result.canceled) setProfileImage(result.assets[0].uri);
+    if (!result.canceled) {
+      setProfileImage(result.assets[0].uri);
+      setProfileImageChanged(true);   // flag so we know to upload it on save
+    }
   };
+
+  // ── Skills helpers ────────────────────────────────────────────────────────
 
   const toggleSkill = (skill: string): void => {
     setSelectedSkills((prev) =>
@@ -403,6 +483,8 @@ export default function ProviderProfiledit(): React.JSX.Element {
     setSelectedSkills((prev) => prev.filter((s) => s !== skill));
   };
 
+  // ── Work portfolio helpers ────────────────────────────────────────────────
+
   const handleWorkChange = (index: number, field: keyof WorkItem, value: any): void => {
     setWorks((prev) => {
       const updated = [...prev];
@@ -417,7 +499,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
   const removeWork = (index: number): void =>
     setWorks((prev) => prev.filter((_, i) => i !== index));
 
-  // ── NIC attachment ────────────────────────────────────────────────────────
+  // ── NIC attachment picker ─────────────────────────────────────────────────
 
   const handleNicAttachment = (): void => {
     Alert.alert(
@@ -441,7 +523,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
               const file = result.assets[0];
               setNicAttachments(prev => [
                 ...prev,
-                { name: `nic_${Date.now()}.jpg`, uri: file.uri },
+                { name: `nic_${Date.now()}.jpg`, uri: file.uri, mimeType: 'image/jpeg' },
               ]);
             }
           },
@@ -463,6 +545,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
               const files: AttachmentFile[] = result.assets.map((a) => ({
                 name: a.fileName ?? `nic_${Date.now()}.jpg`,
                 uri: a.uri,
+                mimeType: a.mimeType ?? 'image/jpeg',
               }));
               setNicAttachments(prev => [...prev, ...files]);
             }
@@ -474,7 +557,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
     );
   };
 
-  // ── BR Certificate attachment ─────────────────────────────────────────────
+  // ── BR Certificate attachment picker ─────────────────────────────────────
 
   const handleBrCertAttachment = (): void => {
     Alert.alert(
@@ -498,7 +581,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
               const file = result.assets[0];
               setBrCertAttachments(prev => [
                 ...prev,
-                { name: `br_cert_${Date.now()}.jpg`, uri: file.uri },
+                { name: `br_cert_${Date.now()}.jpg`, uri: file.uri, mimeType: 'image/jpeg' },
               ]);
             }
           },
@@ -520,6 +603,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
               const files: AttachmentFile[] = result.assets.map((a) => ({
                 name: a.fileName ?? `br_cert_${Date.now()}.jpg`,
                 uri: a.uri,
+                mimeType: a.mimeType ?? 'image/jpeg',
               }));
               setBrCertAttachments(prev => [...prev, ...files]);
             }
@@ -538,6 +622,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
                 const files: AttachmentFile[] = result.assets.map((a) => ({
                   name: a.name,
                   uri: a.uri,
+                  mimeType: a.mimeType ?? 'application/pdf',
                 }));
                 setBrCertAttachments(prev => [...prev, ...files]);
               }
@@ -559,46 +644,129 @@ export default function ProviderProfiledit(): React.JSX.Element {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^\d{7,15}$/;
 
-    if (!name.trim())
-      newErrors.name = 'Full name is required';
-
-    if (!email.trim())
-      newErrors.email = 'Email is required';
-    else if (!emailRegex.test(email))
+    // Only validate format if the user has actually typed something
+    if (email.trim() && !emailRegex.test(email))
       newErrors.email = 'Invalid email format';
 
-    if (!contact.trim())
-      newErrors.contact = 'Contact number is required';
-    else if (!phoneRegex.test(contact.trim()))
+    if (contact.trim() && !phoneRegex.test(contact.trim()))
       newErrors.contact = 'Enter a valid contact number (7–15 digits)';
 
-    if (!category)
-      newErrors.category = 'Please select a service category';
-
-    if (!serviceDescription.trim())
-      newErrors.serviceDescription = 'Please add a service description';
-    else if (serviceDescription.trim().length < 20)
+    if (serviceDescription.trim() && serviceDescription.trim().length < 20)
       newErrors.serviceDescription = 'Description too short (min 20 characters)';
-
-    if (!location)
-      newErrors.location = 'Please set your business location';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // ── Error text helper — same pattern as ProviderSignUp ───────────────────
   const err = (field: string) =>
     errors[field]
       ? <Text style={styles.errorText}>{errors[field]}</Text>
       : null;
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // ── STEP 3: Save — calls the API in sequence ──────────────────────────────
 
-  const handleSave = (): void => {
+  const handleSave = async (): Promise<void> => {
+        console.log('SAVE PRESSED - errors will show below');
+        console.log('name:', name, '| email:', email, '| contact:', contact);
+        console.log('category:', category, '| categoryId:', categoryId);
+        console.log('description length:', serviceDescription.length);
+        console.log('location:', location);
+
     if (!validate()) return;
-    Alert.alert('Profile Updated', 'Your provider profile has been saved successfully!');
+
+    setIsSaving(true);
+    try {
+        console.log('Saving profile with:', {
+          name: name.trim(),
+          phone_number: contact.trim(),
+          description: serviceDescription.trim(),
+          category_id: categoryId || undefined,
+          tags: [...selectedSkills, ...customSkills],
+          latitude: location?.latitude,
+          longitude: location?.longitude,
+        });
+      // 1. Save all text fields
+      await updateMyProfile({
+        name:         name.trim(),
+        phone_number: contact.trim(),
+        description:  serviceDescription.trim(),
+        category_id:  categoryId || undefined,
+        tags:         [...selectedSkills, ...customSkills],
+        latitude:     location?.latitude,
+        longitude:    location?.longitude,
+      });
+
+      // 2. Upload profile image if it was changed
+      if (profileImageChanged && profileImage) {
+        await uploadProfileImage(profileImage);
+      }
+
+      // 3. Upload NIC images if any were attached
+      if (nicAttachments.length > 0) {
+        await uploadIdentityDocument(
+          'nic',
+          nicAttachments.map(f => ({
+            uri:      f.uri,
+            name:     f.name,
+            mimeType: f.mimeType ?? 'image/jpeg',
+          }))
+        );
+      }
+
+      // 4. Upload BR certificate files if any were attached
+      if (brCertAttachments.length > 0) {
+        await uploadIdentityDocument(
+          'br_certificate',
+          brCertAttachments.map(f => ({
+            uri:      f.uri,
+            name:     f.name,
+            mimeType: f.mimeType ?? 'image/jpeg',
+          }))
+        );
+      }
+
+      // 5. Upload portfolio work images
+      const allPortfolioImages = works
+        .flatMap(w => w.attachments)
+        .filter(a => (a.mimeType ?? '').startsWith('image/'))
+        .map(a => a.uri);
+
+      if (allPortfolioImages.length > 0) {
+        await uploadPortfolioImages(allPortfolioImages);
+      }
+
+      Alert.alert('Profile Updated', 'Your provider profile has been saved successfully!');
+
+      // Reset one-time flags
+      setProfileImageChanged(false);
+      setNicAttachments([]);
+      setBrCertAttachments([]);
+
+    } catch (e: any) {
+      Alert.alert(
+        'Save Failed',
+        e?.response?.data?.detail ?? e?.message ?? 'Something went wrong. Please try again.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  // ── Loading screen while profile data is being fetched ────────────────────
+
+  if (isLoadingProfile) {
+    return (
+      <LinearGradient
+        colors={[COLORS.gradientTop, COLORS.gradientBot]}
+        style={[styles.gradient, { alignItems: 'center', justifyContent: 'center' }]}
+      >
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={{ color: COLORS.textSub, marginTop: 14, fontSize: 15, fontWeight: '600' }}>
+          Loading your profile…
+        </Text>
+      </LinearGradient>
+    );
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -614,7 +782,6 @@ export default function ProviderProfiledit(): React.JSX.Element {
 
         {/* ── Header ── */}
         <View style={styles.header}>
-          {/* Left: back button + logo */}
           <View style={styles.headerLeft}>
             <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
               <Ionicons name="chevron-back" size={22} color={COLORS.text} />
@@ -626,17 +793,15 @@ export default function ProviderProfiledit(): React.JSX.Element {
             />
           </View>
 
-          {/* Title */}
           <Text style={styles.headerTitle}>Provider Profile</Text>
 
-          {/* Right: language toggle */}
           <View style={styles.languageToggle}>
             <Text style={[styles.langLabel, !isSinhala && styles.langLabelActive]}>ENG</Text>
             <Text style={styles.langDivider}>|</Text>
             <Text style={[styles.langLabel, isSinhala && styles.langLabelActive]}>සිං</Text>
             <Switch
               value={isSinhala}
-              onValueChange={toggleLanguage}
+              onValueChange={() => setIsSinhala(v => !v)}
               trackColor={{ false: 'rgba(255,255,255,0.3)', true: '#FF6B35' }}
               thumbColor={isSinhala ? '#fff' : '#f0f0f0'}
               ios_backgroundColor="rgba(255,255,255,0.3)"
@@ -676,13 +841,29 @@ export default function ProviderProfiledit(): React.JSX.Element {
 
             {/* ── Personal Info ── */}
             <View style={styles.card}>
-              <InputField label="Name" value={name} onChangeText={(t) => { setName(t); setErrors(e => ({ ...e, name: '' })); }} />
+              <InputField
+                label="Name"
+                value={name}
+                onChangeText={(t) => { setName(t); setErrors(e => ({ ...e, name: '' })); }}
+              />
               {err('name')}
               <View style={styles.divider} />
-              <InputField label="Email" value={email} onChangeText={(t) => { setEmail(t); setErrors(e => ({ ...e, email: '' })); }} keyboardType="email-address" />
-              {err('email')}
+
+              {/* Email is read-only — shown for reference but cannot be changed */}
+              <InputField
+                label="Email"
+                value={email}
+                onChangeText={() => {}}
+                editable={false}
+              />
               <View style={styles.divider} />
-              <InputField label="Contact No." value={contact} onChangeText={(t) => { setContact(t); setErrors(e => ({ ...e, contact: '' })); }} keyboardType="phone-pad" />
+
+              <InputField
+                label="Contact No."
+                value={contact}
+                onChangeText={(t) => { setContact(t); setErrors(e => ({ ...e, contact: '' })); }}
+                keyboardType="phone-pad"
+              />
               {err('contact')}
 
               <View style={styles.divider} />
@@ -710,22 +891,14 @@ export default function ProviderProfiledit(): React.JSX.Element {
               </TouchableOpacity>
 
               {nicAttachments.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.attachmentPreviewRow}
-                >
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.attachmentPreviewRow}>
                   {nicAttachments.map((file, fi) => (
                     <View key={fi} style={styles.attachmentChip}>
                       <Feather name="image" size={12} color={COLORS.accentLight} />
                       <Text style={styles.attachmentChipText} numberOfLines={1}>
                         {file.name.length > 14 ? file.name.slice(0, 12) + '…' : file.name}
                       </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setNicAttachments(prev => prev.filter((_, i) => i !== fi))
-                        }
-                      >
+                      <TouchableOpacity onPress={() => setNicAttachments(prev => prev.filter((_, i) => i !== fi))}>
                         <AntDesign name="close" size={10} color={COLORS.textMuted} />
                       </TouchableOpacity>
                     </View>
@@ -766,13 +939,11 @@ export default function ProviderProfiledit(): React.JSX.Element {
               {err('serviceDescription')}
             </View>
 
-            {/* ── Skills — center aligned ── */}
+            {/* ── Skills ── */}
             <View style={styles.card}>
               <Text style={[styles.inputLabel, { textAlign: 'center', marginBottom: 14 }]}>
                 Skills
               </Text>
-
-              {/* Chips row — centered */}
               <View style={styles.chipsGrid}>
                 {PREDEFINED_SKILLS.map((skill) => (
                   <SkillChip
@@ -794,7 +965,6 @@ export default function ProviderProfiledit(): React.JSX.Element {
                 ))}
               </View>
 
-              {/* Add custom skill */}
               {showSkillInput ? (
                 <View style={styles.customSkillRow}>
                   <TextInput
@@ -818,10 +988,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <TouchableOpacity
-                  style={styles.addSkillBtn}
-                  onPress={() => setShowSkillInput(true)}
-                >
+                <TouchableOpacity style={styles.addSkillBtn} onPress={() => setShowSkillInput(true)}>
                   <AntDesign name="pluscircleo" size={20} color={COLORS.accentLight} />
                   <Text style={styles.addSkillBtnText}>Add Custom Skill</Text>
                 </TouchableOpacity>
@@ -834,16 +1001,8 @@ export default function ProviderProfiledit(): React.JSX.Element {
               onPress={() => router.push('./LocationPicker')}
               activeOpacity={0.8}
             >
-              <Ionicons
-                name="location-outline"
-                size={18}
-                color="rgba(255,255,255,0.7)"
-                style={{ marginRight: 10 }}
-              />
-              <Text
-                style={[styles.locationText, !location && styles.locationPlaceholder]}
-                numberOfLines={1}
-              >
+              <Ionicons name="location-outline" size={18} color="rgba(255,255,255,0.7)" style={{ marginRight: 10 }} />
+              <Text style={[styles.locationText, !location && styles.locationPlaceholder]} numberOfLines={1}>
                 {location
                   ? (location.address || `${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)}`)
                   : 'Tap to set your business location'
@@ -856,11 +1015,7 @@ export default function ProviderProfiledit(): React.JSX.Element {
             {/* ── BR Certificate ── */}
             <View style={styles.card}>
               <Text style={styles.inputLabel}>BR Certificate</Text>
-              <TouchableOpacity
-                style={styles.brCertField}
-                onPress={handleBrCertAttachment}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={styles.brCertField} onPress={handleBrCertAttachment} activeOpacity={0.8}>
                 <View>
                   <Text style={styles.attachmentLabel}>Attachments</Text>
                   {brCertAttachments.length === 0 ? (
@@ -877,22 +1032,14 @@ export default function ProviderProfiledit(): React.JSX.Element {
               </TouchableOpacity>
 
               {brCertAttachments.length > 0 && (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.attachmentPreviewRow}
-                >
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.attachmentPreviewRow}>
                   {brCertAttachments.map((file, fi) => (
                     <View key={fi} style={styles.attachmentChip}>
                       <Feather name="file" size={12} color={COLORS.accentLight} />
                       <Text style={styles.attachmentChipText} numberOfLines={1}>
                         {file.name.length > 14 ? file.name.slice(0, 12) + '…' : file.name}
                       </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setBrCertAttachments(prev => prev.filter((_, i) => i !== fi))
-                        }
-                      >
+                      <TouchableOpacity onPress={() => setBrCertAttachments(prev => prev.filter((_, i) => i !== fi))}>
                         <AntDesign name="close" size={10} color={COLORS.textMuted} />
                       </TouchableOpacity>
                     </View>
@@ -914,7 +1061,6 @@ export default function ProviderProfiledit(): React.JSX.Element {
               />
             ))}
 
-            {/* Add Another Works */}
             <TouchableOpacity style={styles.addWorkBtn} onPress={addWork} activeOpacity={0.8}>
               <Text style={styles.addWorkBtnText}>Add Another Works</Text>
               <AntDesign name="pluscircleo" size={18} color={COLORS.accentLight} />
@@ -923,61 +1069,74 @@ export default function ProviderProfiledit(): React.JSX.Element {
             <Text style={styles.orText}>Or</Text>
 
             {/* Skip */}
-            <TouchableOpacity
-              style={styles.skipBtn}
-              activeOpacity={0.8}
-              onPress={() => router.back()}
-            >
+            <TouchableOpacity style={styles.skipBtn} activeOpacity={0.8} onPress={() => router.back()}>
               <Text style={styles.skipBtnText}>Skip</Text>
             </TouchableOpacity>
 
             <View style={{ height: 16 }} />
 
             {/* Save Profile */}
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-              <Ionicons name="checkmark-circle-outline" size={22} color="#fff" />
-              <Text style={styles.saveBtnText}>Save Profile</Text>
+            <TouchableOpacity
+              style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]}
+              onPress={handleSave}
+              activeOpacity={0.85}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle-outline" size={22} color="#fff" />
+                  <Text style={styles.saveBtnText}>Save Profile</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             <View style={{ height: 40 }} />
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* ── Category Modal ── */}
+        {/* ── Category Modal — shows categories from backend ── */}
         <Modal
           visible={categoryModalVisible}
           transparent
           animationType="slide"
           onRequestClose={() => setCategoryModalVisible(false)}
         >
-          <Pressable
-            style={styles.modalOverlay}
-            onPress={() => setCategoryModalVisible(false)}
-          >
+          <Pressable style={styles.modalOverlay} onPress={() => setCategoryModalVisible(false)}>
             <View style={styles.modalSheet}>
               <View style={styles.modalHandle} />
               <Text style={styles.modalTitle}>Select Category</Text>
-              <FlatList
-                data={CATEGORIES}
-                keyExtractor={(item) => item}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={[styles.modalItem, category === item && styles.modalItemSelected]}
-                    onPress={() => { setCategory(item); setCategoryModalVisible(false); setErrors(e => ({ ...e, category: '' })); }}
-                  >
-                    <Text style={[
-                      styles.modalItemText,
-                      category === item && styles.modalItemTextSelected,
-                    ]}>
-                      {item}
-                    </Text>
-                    {category === item && (
-                      <Ionicons name="checkmark-circle" size={18} color={COLORS.accent} />
-                    )}
-                  </TouchableOpacity>
-                )}
-                ItemSeparatorComponent={() => <View style={styles.modalDivider} />}
-              />
+              {categories.length === 0 ? (
+                <ActivityIndicator color={COLORS.accentLight} style={{ marginTop: 20 }} />
+              ) : (
+                <FlatList
+                  data={categories}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[styles.modalItem, category === item.name && styles.modalItemSelected]}
+                      onPress={() => {
+                        setCategory(item.name);
+                        setCategoryId(item.id);
+                        setCategoryModalVisible(false);
+                        setErrors(e => ({ ...e, category: '' }));
+                      }}
+                    >
+                      <Text style={[
+                        styles.modalItemText,
+                        category === item.name && styles.modalItemTextSelected,
+                      ]}>
+                        {item.name}
+                      </Text>
+                      {category === item.name && (
+                        <Ionicons name="checkmark-circle" size={18} color={COLORS.accent} />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  ItemSeparatorComponent={() => <View style={styles.modalDivider} />}
+                />
+              )}
             </View>
           </Pressable>
         </Modal>
@@ -991,218 +1150,138 @@ export default function ProviderProfiledit(): React.JSX.Element {
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   safe: { flex: 1 },
-
-  // Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.12)',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerBack: {
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
-  headerTitle: {
-    color: COLORS.text, fontSize: 17,
-    fontWeight: '700', letterSpacing: 0.3,
-  },
-  headerLogo: {
-    width: 80,
-    height: 28,
-  },
-  // Language toggle
+  headerTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', letterSpacing: 0.3 },
+  headerLogo: { width: 80, height: 28 },
   languageToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
   },
-  langLabel:       { color: 'rgba(255,255,255,0.5)', fontWeight: '700', fontSize: 13, marginHorizontal: 3 },
+  langLabel: { color: 'rgba(255,255,255,0.5)', fontWeight: '700', fontSize: 13, marginHorizontal: 3 },
   langLabelActive: { color: 'white' },
-  langDivider:     { color: 'rgba(255,255,255,0.4)', marginHorizontal: 2 },
-  switchStyle:     { marginLeft: 6, transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
-
-  // Scroll
+  langDivider: { color: 'rgba(255,255,255,0.4)', marginHorizontal: 2 },
+  switchStyle: { marginLeft: 6, transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20 },
-
-  // Avatar
   avatarWrapper: { alignSelf: 'center', marginBottom: 24 },
-  avatar: {
-    width: 90, height: 90, borderRadius: 45,
-    borderWidth: 3, borderColor: 'rgba(255,255,255,0.6)',
-  },
+  avatar: { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: 'rgba(255,255,255,0.6)' },
   avatarPlaceholder: {
     width: 90, height: 90, borderRadius: 45,
     backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: 2, borderColor: COLORS.cardBorder,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center', justifyContent: 'center',
   },
   avatarBadge: {
     position: 'absolute', bottom: 2, right: 2,
     width: 26, height: 26, borderRadius: 13,
-    backgroundColor: COLORS.accent,
+    backgroundColor: '#1A6BFF',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: COLORS.gradientBot,
+    borderWidth: 2, borderColor: '#022373',
   },
-
-  // Card
   card: {
-    backgroundColor: COLORS.card, borderRadius: 16,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 16,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 16, paddingVertical: 14, marginBottom: 14,
   },
-
-  // Section header — with side lines
-  sectionHeaderRow: {
-    flexDirection: 'row', alignItems: 'center',
-    marginVertical: 18, gap: 10,
-  },
-  sectionLine: {
-    flex: 1, height: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  sectionTitle: {
-    color: COLORS.sectionTitle, fontSize: 15,
-    fontWeight: '700', letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-
-  // Inputs
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 18, gap: 10 },
+  sectionLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.2)' },
+  sectionTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
   inputWrapper: { marginBottom: 4 },
   inputLabel: {
-    color: COLORS.textSub, fontSize: 12, fontWeight: '600',
+    color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: '600',
     marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6,
   },
   input: {
-    color: COLORS.text, fontSize: 15, fontWeight: '500',
+    color: '#FFFFFF', fontSize: 15, fontWeight: '500',
     paddingVertical: 10, paddingHorizontal: 12,
-    backgroundColor: COLORS.inputBg, borderRadius: 10,
-    borderWidth: 1, borderColor: COLORS.inputBorder, minHeight: 44,
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)', minHeight: 44,
   },
   inputMultiline: { minHeight: 90, paddingTop: 10 },
-  divider: { height: 1, backgroundColor: COLORS.divider, marginVertical: 10 },
-
-  // Dropdown
+  inputDisabled: { opacity: 0.5 },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginVertical: 10 },
   dropdown: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.card, borderRadius: 14,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 16, paddingVertical: 14, marginBottom: 14,
   },
-  dropdownPlaceholder: { color: COLORS.textMuted, fontSize: 15 },
-  dropdownValue: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
-
-  // Skills — center aligned
+  dropdownPlaceholder: { color: 'rgba(255,255,255,0.45)', fontSize: 15 },
+  dropdownValue: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
   chipsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',   // ← center alignment
-    gap: 8,
-    marginBottom: 14,
+    flexDirection: 'row', flexWrap: 'wrap',
+    justifyContent: 'center', gap: 8, marginBottom: 14,
   },
   chip: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
-    backgroundColor: COLORS.chipBg,
-    borderWidth: 1, borderColor: COLORS.chipBorder, gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', gap: 5,
   },
-  chipSelected: {
-    backgroundColor: COLORS.chipSelected,
-    borderColor: COLORS.chipSelected,
-  },
-  chipText: { color: COLORS.textSub, fontSize: 13, fontWeight: '500' },
+  chipSelected: { backgroundColor: '#1A6BFF', borderColor: '#1A6BFF' },
+  chipText: { color: 'rgba(255,255,255,0.70)', fontSize: 13, fontWeight: '500' },
   chipTextSelected: { color: '#fff', fontWeight: '700' },
   chipRemove: { marginLeft: 2 },
-  addSkillBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8, paddingVertical: 6,
-  },
-  addSkillBtnText: { color: COLORS.accentLight, fontSize: 14, fontWeight: '600' },
+  addSkillBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 6 },
+  addSkillBtnText: { color: '#4DA3FF', fontSize: 14, fontWeight: '600' },
   customSkillRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   customSkillInput: {
-    flex: 1, color: COLORS.text, fontSize: 14,
-    backgroundColor: COLORS.inputBg, borderRadius: 10,
-    borderWidth: 1, borderColor: COLORS.inputBorder,
+    flex: 1, color: '#FFFFFF', fontSize: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
     paddingHorizontal: 12, paddingVertical: 8, height: 40,
   },
   customSkillConfirm: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: COLORS.accent,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#1A6BFF', alignItems: 'center', justifyContent: 'center',
   },
   customSkillCancel: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: COLORS.card,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
-
-  // BR cert attachment field — same look as work card attachment
   brCertField: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.inputBg,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.inputBorder,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 8,
-    marginTop: 6,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+    paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8, marginTop: 6,
   },
-
-  // Location
   locationField: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.card, borderRadius: 14,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 14, paddingVertical: 14, marginBottom: 14,
   },
-  locationText: { flex: 1, color: COLORS.text, fontSize: 14, fontWeight: '500' },
-  locationPlaceholder: { color: COLORS.textMuted, fontWeight: '400' },
-
-  // Work card
+  locationText: { flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '500' },
+  locationPlaceholder: { color: 'rgba(255,255,255,0.45)', fontWeight: '400' },
   workCard: {
-    backgroundColor: COLORS.card, borderRadius: 16,
-    borderWidth: 1, borderColor: COLORS.cardBorder,
+    backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 16,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
     padding: 16, marginBottom: 14,
   },
-  workCardHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 12,
-  },
-  workCardTitle: {
-    color: COLORS.textSub, fontSize: 13, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.8,
-  },
+  workCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  workCardTitle: { color: 'rgba(255,255,255,0.70)', fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 },
   attachmentField: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.inputBg, borderRadius: 10,
-    borderWidth: 1, borderColor: COLORS.inputBorder,
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
     paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8,
   },
-  attachmentLabel: {
-    color: COLORS.textSub, fontSize: 12, fontWeight: '600',
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
-  },
-  attachmentPlaceholder: { color: COLORS.textMuted, fontSize: 13 },
-  attachmentCount: { color: COLORS.accentLight, fontSize: 13, fontWeight: '600' },
+  attachmentLabel: { color: 'rgba(255,255,255,0.70)', fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  attachmentPlaceholder: { color: 'rgba(255,255,255,0.45)', fontSize: 13 },
+  attachmentCount: { color: '#4DA3FF', fontSize: 13, fontWeight: '600' },
   attachmentPreviewRow: { flexDirection: 'row', marginBottom: 8 },
   attachmentChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
@@ -1210,79 +1289,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 5, marginRight: 8,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', maxWidth: 140,
   },
-  attachmentChipText: { color: COLORS.textSub, fontSize: 11, flex: 1 },
-
-  // Add work
+  attachmentChipText: { color: 'rgba(255,255,255,0.70)', fontSize: 11, flex: 1 },
   addWorkBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    backgroundColor: COLORS.card, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 14,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
     paddingVertical: 14, marginBottom: 12,
   },
-  addWorkBtnText: { color: COLORS.text, fontSize: 15, fontWeight: '700' },
-
-  orText: {
-    color: COLORS.textMuted, fontSize: 14,
-    textAlign: 'center', marginBottom: 12,
-  },
-
-  // Save button
-  saveBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 14, paddingVertical: 15,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
-    marginBottom: 12,
-  },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
-
-  // Skip button
+  addWorkBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  orText: { color: 'rgba(255,255,255,0.45)', fontSize: 14, textAlign: 'center', marginBottom: 12 },
   skipBtn: {
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'transparent', borderRadius: 14,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
     paddingVertical: 13,
   },
-  skipBtnText: { color: COLORS.textSub, fontSize: 15, fontWeight: '600' },
-
-  // Validation
-  errorText: {
-    color: '#FFD700',
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
-    marginTop: 4,
-    marginBottom: 4,
+  skipBtnText: { color: 'rgba(255,255,255,0.70)', fontSize: 15, fontWeight: '600' },
+  saveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 14, paddingVertical: 15,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', marginBottom: 12,
+    minHeight: 54,
   },
-  inputError: {
-    borderColor: '#FFD700',
-    borderWidth: 1.5,
-  },
-
-  // Category Modal
+  saveBtnDisabled: { opacity: 0.6 },
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.3 },
+  errorText: { color: '#FFD700', fontSize: 12, fontWeight: '600', marginLeft: 4, marginTop: 4, marginBottom: 4 },
+  inputError: { borderColor: '#FFD700', borderWidth: 1.5 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: '#0A2060', borderTopLeftRadius: 24, borderTopRightRadius: 24,
     paddingTop: 12, paddingBottom: 34, paddingHorizontal: 20,
-    maxHeight: '65%', borderWidth: 1, borderColor: COLORS.cardBorder,
+    maxHeight: '65%', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
   },
-  modalHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: COLORS.divider, alignSelf: 'center', marginBottom: 16,
-  },
-  modalTitle: {
-    color: COLORS.text, fontSize: 17, fontWeight: '700',
-    marginBottom: 16, textAlign: 'center',
-  },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.12)', alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   modalItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 14, paddingHorizontal: 4,
   },
   modalItemSelected: {
-    backgroundColor: COLORS.accentGlow, borderRadius: 10,
+    backgroundColor: 'rgba(26,107,255,0.25)', borderRadius: 10,
     paddingHorizontal: 10, marginHorizontal: -10,
   },
-  modalItemText: { color: COLORS.textSub, fontSize: 15 },
-  modalItemTextSelected: { color: COLORS.text, fontWeight: '700' },
-  modalDivider: { height: 1, backgroundColor: COLORS.divider },
+  modalItemText: { color: 'rgba(255,255,255,0.70)', fontSize: 15 },
+  modalItemTextSelected: { color: '#FFFFFF', fontWeight: '700' },
+  modalDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.12)' },
 });
