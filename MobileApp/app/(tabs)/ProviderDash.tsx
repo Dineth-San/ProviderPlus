@@ -22,6 +22,7 @@ import {
 } from '../services/dashboardService';
 
 import{ useRouter} from 'expo-router';
+import { BlurView } from 'expo-blur';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -75,56 +76,89 @@ const getGreetingEmoji = (): string => {
   return '🌙';
 };
 
-// ─── Expandable Card Component ────────────────────────────────
+// ─── Popup Modal Component ────────────────────────────────────
+interface CardModalProps {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  icon: string;
+  children: React.ReactNode;
+}
 
+const CardModal: React.FC<CardModalProps> = ({ visible, onClose, title, icon, children }) => {
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 65,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0.8);
+      opacityAnim.setValue(0);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <View style={modalStyles.overlay}>
+      <BlurView
+        intensity={40}
+        tint="dark"
+        experimentalBlurMethod="dimezisBlurView"
+        style={StyleSheet.absoluteFill}
+      />
+      <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+      <Animated.View style={[modalStyles.card, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}>
+        <LinearGradient colors={['#1086b5', '#022373']} style={modalStyles.cardGradient}>
+          {/* Header */}
+          <View style={modalStyles.cardHeader}>
+            <Text style={modalStyles.cardIcon}>{icon}</Text>
+            <Text style={modalStyles.cardTitle}>{title}</Text>
+            <TouchableOpacity style={modalStyles.closeBtn} onPress={onClose}>
+              <Text style={modalStyles.closeBtnText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={modalStyles.divider} />
+          {children}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
+};
+
+
+
+// ─── Expandable Card Component (now triggers popup) ───────────
 const ExpandableCard: React.FC<ExpandableCardProps> = ({
-  icon,
-  title,
-  value,
-  subtitle,
-  expandedContent,
-  onPress,
-  style,
+  icon, title, value, subtitle, onPress, style,
 }) => {
-  const [expanded, setExpanded] = useState<boolean>(false);
-  const animHeight = useRef(new Animated.Value(0)).current;
   const animScale = useRef(new Animated.Value(1)).current;
 
-  const toggleExpand = (): void => {
-    if (onPress) {
-      onPress();
-      return;
-    }
-    const toExpanded = !expanded;
-    setExpanded(toExpanded);
-
-    Animated.parallel([
-      Animated.spring(animHeight, {
-        toValue: toExpanded ? 1 : 0,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: false,
-      }),
-      Animated.spring(animScale, {
-        toValue: toExpanded ? 1.02 : 1,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.spring(animScale, { toValue: 0.95, useNativeDriver: true, friction: 8 }),
+      Animated.spring(animScale, { toValue: 1, useNativeDriver: true, friction: 8 }),
+    ]).start(() => onPress && onPress());
   };
-
-  const expandedHeight = animHeight.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 100],
-  });
 
   return (
     <Animated.View style={[{ transform: [{ scale: animScale }] }, style]}>
       <TouchableOpacity
-        activeOpacity={0.7}
-        onLongPress={toggleExpand}
-        onPress={onPress || toggleExpand}
-        delayLongPress={400}
+        activeOpacity={0.85}
+        onPress={handlePress}
         style={styles.card}
       >
         <View style={styles.cardInner}>
@@ -137,17 +171,6 @@ const ExpandableCard: React.FC<ExpandableCardProps> = ({
             {subtitle ? <Text style={styles.cardSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
           </View>
         </View>
-
-        <Animated.View
-          style={[styles.expandedSection, { height: expandedHeight, opacity: animHeight }]}
-        >
-          {expanded && (
-            <View style={styles.expandedContentInner}>
-              <View style={styles.divider} />
-              {expandedContent}
-            </View>
-          )}
-        </Animated.View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -192,7 +215,13 @@ const AIOverviewCard: React.FC<AIOverviewCardProps> = ({ overview, loading, erro
           </TouchableOpacity>
         </View>
       ) : (
-        <Text style={styles.aiOverviewText}>{overview}</Text>
+        <View style={{ gap: 8 }}>
+          {overview.split('\n').filter(line => line.trim().length > 0).map((line, index) => (
+            <View key={index} style={styles.aiOverviewLine}>
+              <Text style={styles.aiOverviewText}>{line.trim()}</Text>
+            </View>
+          ))}
+        </View>
       )}
     </View>
   );
@@ -222,6 +251,10 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
     customerResponses: 5,
     reSchedules: 12,
   });
+
+const [activeModal, setActiveModal] = useState<string | null>(null);
+const openModal = (name: string) => setActiveModal(name);
+const closeModal = () => setActiveModal(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -370,7 +403,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
                 title="Completed Jobs"
                 value={dashboardData.completedJobs}
                 subtitle="Today"
-                onPress={() => navigation?.navigate?.('CompletedJobs')}
+                onPress={() => openModal('completed')}
                 style={styles.cardWrapper}
               />
               <ExpandableCard
@@ -378,12 +411,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
                 title="Upcoming Jobs"
                 value={dashboardData.upcomingJobs}
                 subtitle="Scheduled"
-                expandedContent={
-                  <View>
-                    <Text style={styles.expandedText}>Next job in 2 hours</Text>
-                    <Text style={styles.expandedText}>Tap to see full schedule →</Text>
-                  </View>
-                }
+                onPress={() => openModal('upcoming')}
                 style={styles.cardWrapper}
               />
             </View>
@@ -394,12 +422,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
                 title="Notifications"
                 value={dashboardData.notifications}
                 subtitle="New"
-                expandedContent={
-                  <View>
-                    <Text style={styles.expandedText}>• New job request nearby</Text>
-                    <Text style={styles.expandedText}>Tap to view all →</Text>
-                  </View>
-                }
+                onPress={() => openModal('notifications')}
                 style={styles.cardWrapper}
               />
               <ExpandableCard
@@ -407,12 +430,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
                 title="Rating"
                 value={dashboardData.rating}
                 subtitle={`(${dashboardData.totalReviews})`}
-                expandedContent={
-                  <View>
-                    <Text style={styles.expandedText}>Top rated in your area!</Text>
-                    <Text style={styles.expandedText}>5★: 18 | 4★: 4 | 3★: 2</Text>
-                  </View>
-                }
+                onPress={() => openModal('rating')}
                 style={styles.cardWrapper}
               />
             </View>
@@ -423,12 +441,7 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
                 title="Responses"
                 value={dashboardData.customerResponses}
                 subtitle="Pending"
-                expandedContent={
-                  <View>
-                    <Text style={styles.expandedText}>3 awaiting your reply</Text>
-                    <Text style={styles.expandedText}>Avg response time: 12min</Text>
-                  </View>
-                }
+                onPress={() => openModal('responses')}
                 style={styles.cardWrapper}
               />
               <ExpandableCard
@@ -436,17 +449,133 @@ const ProviderDashboard: React.FC<ProviderDashboardProps> = ({ navigation, route
                 title="Re-Schedules"
                 value={dashboardData.reSchedules}
                 subtitle="View All"
-                expandedContent={
-                  <View>
-                    <Text style={styles.expandedText}>2 pending approval</Text>
-                    <Text style={styles.expandedText}>10 completed this month</Text>
-                  </View>
-                }
+                onPress={() => openModal('reschedules')}
                 style={styles.cardWrapper}
               />
             </View>
           </View>
 
+          {/* Bottom spacing for navbar */}
+          <View style={{ height: 80 }} />
+
+          {/* ── Popups ── */}
+
+          {/* Upcoming Jobs */}
+          <CardModal visible={activeModal === 'upcoming'} onClose={closeModal} title="Upcoming Jobs" icon="📋">
+            <View style={modalStyles.previewItem}>
+              <Text style={modalStyles.previewTitle}>Fix Kitchen Plumbing</Text>
+              <Text style={modalStyles.previewSub}>Galle Rd, Colombo-5  ·  In 1 hour</Text>
+            </View>
+            <View style={modalStyles.previewItem}>
+              <Text style={modalStyles.previewTitle}>Fix Bathroom</Text>
+              <Text style={modalStyles.previewSub}>Embuldeniya, Nugegoda  ·  Tomorrow 10 AM</Text>
+            </View>
+            <TouchableOpacity style={modalStyles.navBtn} onPress={() => { closeModal(); router.push('/ProviderSchedule'); }}>
+              <Text style={modalStyles.navBtnText}>VIEW FULL SCHEDULE →</Text>
+            </TouchableOpacity>
+          </CardModal>
+
+          {/* Completed Jobs */}
+          <CardModal visible={activeModal === 'completed'} onClose={closeModal} title="Completed Jobs" icon="✅">
+            <View style={modalStyles.previewItem}>
+              <Text style={modalStyles.previewTitle}>Fix Bathroom</Text>
+              <Text style={modalStyles.previewSub}>Completed today  ·  LKR 4,500</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>Total this week</Text>
+              <Text style={modalStyles.statValue}>8 jobs</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>Total this month</Text>
+              <Text style={modalStyles.statValue}>24 jobs</Text>
+            </View>
+            <TouchableOpacity style={modalStyles.navBtn} onPress={() => { closeModal(); router.push('/ProviderSchedule'); }}>
+              <Text style={modalStyles.navBtnText}>VIEW ALL JOBS →</Text>
+            </TouchableOpacity>
+          </CardModal>
+
+          {/* Notifications
+              ── To connect with ProviderAlerts:
+                 Export unread count from ProviderAlerts using a shared Zustand/Context store,
+                 or pass it back via params. For now it reads from dashboardData.notifications ── */}
+          <CardModal visible={activeModal === 'notifications'} onClose={closeModal} title="Notifications" icon="🔔">
+            <View style={modalStyles.previewItem}>
+              <Text style={modalStyles.previewTitle}>New Booking Request</Text>
+              <Text style={modalStyles.previewSub}>Priya Jayawardena  ·  2 mins ago</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>Unread notifications</Text>
+              <Text style={modalStyles.statValue}>{dashboardData.notifications}</Text>
+            </View>
+            <TouchableOpacity style={modalStyles.navBtn} onPress={() => { closeModal(); router.push('../ProviderAlerts'); }}>
+              <Text style={modalStyles.navBtnText}>VIEW ALL NOTIFICATIONS →</Text>
+            </TouchableOpacity>
+          </CardModal>
+
+          {/* Rating */}
+          <CardModal visible={activeModal === 'rating'} onClose={closeModal} title="Your Rating" icon="⭐">
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>Average Rating</Text>
+              <Text style={modalStyles.statValue}>{dashboardData.rating} / 5.0</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>Total Reviews</Text>
+              <Text style={modalStyles.statValue}>{dashboardData.totalReviews}</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>5★ Reviews</Text>
+              <Text style={modalStyles.statValue}>18</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>4★ Reviews</Text>
+              <Text style={modalStyles.statValue}>4</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>3★ Reviews</Text>
+              <Text style={modalStyles.statValue}>2</Text>
+            </View>
+            <TouchableOpacity style={[modalStyles.navBtn, { marginTop: 10 }]} onPress={() => { closeModal(); }}>
+              <Text style={modalStyles.navBtnText}>VIEW ALL REVIEWS →</Text>
+            </TouchableOpacity>
+          </CardModal>
+
+          {/* Responses
+              ── To connect with ProviderChats:
+                 Export unread chat count from ProviderChats via a shared Context/Zustand store.
+                 Example: const { unreadChats, lastChat } = useChatsStore();
+                 Then replace hardcoded values below with those variables ── */}
+          <CardModal visible={activeModal === 'responses'} onClose={closeModal} title="Responses" icon="💬">
+            <View style={modalStyles.previewItem}>
+              <Text style={modalStyles.previewTitle}>Nimal Perera</Text>
+              <Text style={modalStyles.previewSub}>"Hi! Are you available tomorrow at 4 PM?"  ·  2 mins ago</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>Unread chats</Text>
+              <Text style={modalStyles.statValue}>{dashboardData.customerResponses}</Text>
+            </View>
+            <TouchableOpacity style={modalStyles.navBtn} onPress={() => { closeModal(); router.push('/ProviderChats'); }}>
+              <Text style={modalStyles.navBtnText}>OPEN CHATS →</Text>
+            </TouchableOpacity>
+          </CardModal>
+
+          {/* Reschedules */}
+          <CardModal visible={activeModal === 'reschedules'} onClose={closeModal} title="Re-Schedules" icon="🔄">
+            <View style={modalStyles.previewItem}>
+              <Text style={modalStyles.previewTitle}>Fix Bathroom</Text>
+              <Text style={modalStyles.previewSub}>Fernando Perera  ·  Requested Dec 22</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>Pending approval</Text>
+              <Text style={modalStyles.statValue}>2</Text>
+            </View>
+            <View style={modalStyles.statRow}>
+              <Text style={modalStyles.statLabel}>Completed this month</Text>
+              <Text style={modalStyles.statValue}>10</Text>
+            </View>
+            <TouchableOpacity style={[modalStyles.navBtn, { marginTop: 6 }]} onPress={() => { closeModal(); router.push('/RescheduledJobs'); }}>
+              <Text style={modalStyles.navBtnText}>VIEW RESCHEDULED JOBS →</Text>
+            </TouchableOpacity>
+          </CardModal>
           {/* Bottom spacing for your existing navbar */}
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -590,6 +719,9 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '400',
   },
+aiOverviewLine: {
+  marginBottom: 4,
+},
   aiLoadingContainer: {
     gap: 10,
   },
@@ -675,23 +807,72 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  expandedSection: {
+});
+const modalStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  card: {
+    width: SCREEN_WIDTH * 0.85,
+    borderRadius: 24,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  expandedContentInner: {
-    paddingTop: 4,
+  cardGradient: { padding: 22 },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
   },
-  divider: {
-    height: 1,
+  cardIcon: { fontSize: 22, marginRight: 10 },
+  cardTitle: { color: 'white', fontSize: 18, fontWeight: '800', flex: 1 },
+  closeBtn: {
+    width: 30, height: 30,
+    borderRadius: 15,
     backgroundColor: 'rgba(255,255,255,0.15)',
-    marginVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  expandedText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
-    lineHeight: 20,
-    fontWeight: '400',
+  closeBtnText: { color: 'white', fontSize: 13, fontWeight: '700' },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: 16 },
+  previewItem: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
+  previewTitle: { color: 'white', fontWeight: '700', fontSize: 14 },
+  previewSub: { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 3 },
+  navBtn: {
+    marginTop: 6,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 20,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  navBtnText: { color: 'white', fontWeight: '700', fontSize: 13, letterSpacing: 0.5 },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statLabel: { color: 'rgba(255,255,255,0.65)', fontSize: 13 },
+  statValue: { color: 'white', fontWeight: '700', fontSize: 13 },
 });
 
 export default ProviderDashboard;
