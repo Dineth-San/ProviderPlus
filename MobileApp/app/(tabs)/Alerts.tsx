@@ -140,7 +140,7 @@ const toggleLanguage = () => setIsSinhala(prev => !prev);
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => router.navigate('/(tabs)')}>
               <Text style={styles.backArrow}>‹</Text>
             </TouchableOpacity>
 

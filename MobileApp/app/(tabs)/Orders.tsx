@@ -78,12 +78,12 @@ function OrdersScreen() {
   };
 
   return (
-    <LinearGradient colors={['#00C6FF', '#0072FF']} style={styles.container}>
+    <LinearGradient colors={['#00D9FF', '#0056D2']} style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
 
         {/* ── TOP BAR ── */}
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.navigate('/(tabs)')}>
             <Text style={styles.backArrow}>‹</Text>
           </TouchableOpacity>
 

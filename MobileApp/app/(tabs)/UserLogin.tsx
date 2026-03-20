@@ -241,7 +241,7 @@ const UserLogin: React.FC = () => {
                             <View style={styles.inlineRoleToggle}>
                                 <View style={styles.toggleBackground}>
                                     <Pressable style={styles.toggleButton} onPress={() => setUserRole('customer')}>
-                                        {userRole === 'customer' && <LinearGradient colors={['#00ADF5', '#0072FF']} style={[StyleSheet.absoluteFill, { borderRadius: 25 }]} />}
+                                        {userRole === 'customer' && <LinearGradient colors={['#00D9FF', '#0056D2']} style={[StyleSheet.absoluteFill, { borderRadius: 25 }]} />}
                                         <Text style={[styles.toggleText, userRole === 'customer' && styles.activeToggleText]}>{strings.user}</Text>
                                     </Pressable>
                                     <Pressable style={styles.toggleButton} onPress={() => setUserRole('provider')}>
