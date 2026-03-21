@@ -67,7 +67,6 @@ function isIntercepted(key: RouteKey): boolean {
 
 // ─── Custom Animated Tab Bar ──────────────────────────────────────────
 function AnimatedTabBar({ state, descriptors, navigation }: any) {
-  const { role } = useAuth();
   const pathname = usePathname();
   const { role } = useAuth();
   const router = useRouter();
