@@ -69,6 +69,8 @@ function isIntercepted(key: RouteKey): boolean {
 function AnimatedTabBar({ state, descriptors, navigation }: any) {
   const { role } = useAuth();
   const pathname = usePathname();
+  const { role } = useAuth();
+  const router = useRouter();
 
   const activeTabs         = getTabsForRole(role);
   // Collect unique tabFile names for this role (deduped — user/providerAccount
