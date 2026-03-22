@@ -1,4 +1,4 @@
-'use client';
+    'use client';
 
 import { motion } from "framer-motion";
 import { Star } from "lucide-react"; // Make sure to import Star if you haven't
@@ -22,9 +22,20 @@ const Hero = () => {
                         className="space-y-4 max-w-lg text-center md:text-left"
                     >
                         <h1 className="text-5xl md:text-7xl font-bold text-[#0C2B4E] leading-[1.1]">
-                            PROVIDER+<br />
+                            {'PROVIDER+'.split('').map((char, i) => (
+                                <motion.span
+                                    key={i}
+                                    initial={{ opacity: 0, x: -10 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ duration: 0.35, delay: i * 0.07 }}
+                                    style={{ display: 'inline-block' }}
+                                >
+                                    {char}
+                                </motion.span>
+                            ))}
+                            <br />
                         </h1>
-                        <h1 className="text-5xl md:text-7xl font-light text-[#0C2B4E] leading-[1.1]">
+                        <h1 className="text-4x1 md:text-6xl font-light text-[#0C2B4E] leading-[1.1]">
                             AN ALL-IN-ONE <br />
                             <span className="font-medium text-[#19579F]">SERVICE</span> <br />
                             PLATFORM
