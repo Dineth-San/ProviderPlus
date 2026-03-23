@@ -111,6 +111,6 @@ export interface BookingResponse {
  * returns booking_id and payment details to redirect to the payment screen
  */
 export const createBooking = async (payload: BookingPayload): Promise<BookingResponse> => {
-    const response = await apiClient.post('/messaging/booking', payload);
+    const response = await apiClient.post('/messaging/booking/', payload);
     return response.data;
 };

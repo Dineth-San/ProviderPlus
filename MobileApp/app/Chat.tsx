@@ -256,6 +256,7 @@ const Chat = () => {
                 user_latitude: userLatitude,
                 user_longitude: userLongitude,
             });
+            console.log(result)
 
             setModalVisible(false);
 

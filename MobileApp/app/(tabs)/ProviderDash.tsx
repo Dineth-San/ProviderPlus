@@ -587,7 +587,7 @@ const closeModal = () => setActiveModal(null);
               <Text style={modalStyles.statLabel}>Completed this month</Text>
               <Text style={modalStyles.statValue}>10</Text>
             </View>
-            <TouchableOpacity style={[modalStyles.navBtn, { marginTop: 6 }]} onPress={() => { closeModal(); router.push('/RescheduledJobs'); }}>
+            <TouchableOpacity style={[modalStyles.navBtn, { marginTop: 6 }]} onPress={() => { closeModal(); router.push('/'); }}>
               <Text style={modalStyles.navBtnText}>VIEW RESCHEDULED JOBS →</Text>
             </TouchableOpacity>
           </CardModal>
