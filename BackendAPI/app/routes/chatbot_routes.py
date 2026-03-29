@@ -36,9 +36,6 @@ async def chat_with_ai(query: SearchQuery):
                 category=search_filter.category,
                 keywords=search_filter.keywords
             )
-            """
-            THE BELOW LINE WILL LIKELY CHANGE
-            """
             # take the top 3 results for display
             top_results = category_results[:3]
 

@@ -1,10 +1,11 @@
 import axios from 'axios';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Alert } from 'react-native';
 
 // --- CONFIGURATION ---
-export const LAPTOP_IP = '192.168.1.4';
+export const LAPTOP_IP = '192.168.1.5';
 
-const IS_LOCAL = true;
+const IS_LOCAL = false;
 
 const BASE_URL = IS_LOCAL
     ? `http://${LAPTOP_IP}:8001/api`
@@ -31,5 +32,20 @@ apiClient.interceptors.request.use(
     },
     (error) => Promise.reject(error)
 );
+
+
+apiClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (!error.response) {
+            Alert.alert(
+                "No Internet Connection",
+                "Please check your network and try again."
+            );
+        }
+        return Promise.reject(error);
+    }
+);
+
 
 export default apiClient;

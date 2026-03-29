@@ -82,7 +82,6 @@ async def get_providers_by_slug(slug: str, user_lat: Optional[float] = None, use
     query = {"category.$id": category.id}
 
     if user_lat is not None and user_long is not None:
-        print(f"📍 Filtering: Finding providers within {radius_km}km of {user_lat}, {user_long}")
         query["location"] = {
             "$near": {
                 "$geometry": {

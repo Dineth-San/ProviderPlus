@@ -123,6 +123,28 @@ const UserLogin: React.FC = () => {
                 email: email.trim().toLowerCase(),
                 password: password
             });
+
+            // ── Role mismatch check ───────────────────────────────────────────
+            // response.role comes from the backend JWT — it's the real role
+            // userRole is what the selector is set to
+            // If they don't match, block the login
+            if (userRole === 'customer' && response.role !== 'customer') {
+                Alert.alert(
+                    "Wrong Login Type",
+                    "This account is not a customer account. Please select the correct role."
+                );
+                return;
+            }
+
+            if (userRole === 'provider' && response.role !== 'provider') {
+                Alert.alert(
+                    "Wrong Login Type",
+                    "This account is not a provider account. Please select the correct role."
+                );
+                return;
+            }
+            // ─────────────────────────────────────────────────────────────────
+
             if (userRole === 'customer') {
                 setRole('user');
                 Alert.alert("Welcome Back!", `Successfully logged in as ${response.user_name}`, [{

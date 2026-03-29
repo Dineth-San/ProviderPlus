@@ -12,8 +12,6 @@ const { width } = Dimensions.get('window');
 import{ fetchProviderConversations, ChatConversation } from '../services/messagingService';
 import {ActivityIndicator} from 'react-native';
 import {useEffect} from 'react';
-import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
 
 // ─── Avatar ───────────────────────────────────────────────────────────
 function Avatar({ name, size = 52 }: { name: string; size?: number }) {

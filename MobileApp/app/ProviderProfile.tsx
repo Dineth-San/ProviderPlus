@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   StyleSheet, Text, View, Image, ScrollView,
-  TouchableOpacity, SafeAreaView, ActivityIndicator,
+  TouchableOpacity, SafeAreaView, ActivityIndicator, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -130,7 +130,8 @@ export default function ProviderProfile() {
         },
       });
     } catch (e) {
-      console.error('Failed to open chat:', e);
+      Alert.alert("Error", "Please login before booking a provider");
+      router.push('/(tabs)/UserLogin');
     } finally {
       setBooking(false);
     }

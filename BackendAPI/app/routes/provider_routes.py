@@ -71,9 +71,6 @@ async def get_category_names_endpoint():
     return names
 
 
-# ─── IMPORTANT: /provider/me routes MUST come BEFORE /provider/{provider_id}
-# Otherwise FastAPI treats "me" as a provider_id string
-
 @router.get("/provider/me/profile")
 async def get_my_profile(
         current_provider: Provider = Depends(get_current_provider),

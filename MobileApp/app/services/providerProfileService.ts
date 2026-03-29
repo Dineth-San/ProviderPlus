@@ -54,7 +54,7 @@ async function getAuthHeader(): Promise<{ Authorization: string }> {
 export async function getMyProfile(): Promise<ProviderData> {
     const headers = await getAuthHeader();
     const response = await apiClient.get(
-        'category-search/provider/me/profile/',
+        '/category-search/provider/me/profile',
         { headers }
     );
     return response.data;
@@ -73,7 +73,7 @@ export async function updateMyProfile(
 ): Promise<{ message: string }> {
     const headers = await getAuthHeader();
     const response = await apiClient.patch(
-        'category-search/provider/me/profile/',
+        '/category-search/provider/me/profile',
         payload,
         { headers }
     );
@@ -101,7 +101,7 @@ export async function uploadProfileImage(
     } as any);
 
     const response = await apiClient.post(
-        'category-search/provider/me/profile-image/',
+        '/category-search/provider/me/profile-image',
         formData,
         { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
     );
@@ -130,7 +130,7 @@ export async function uploadPortfolioImages(
     });
 
     const response = await apiClient.post(
-        'category-search/provider/me/portfolio-images/',
+        '/category-search/provider/me/portfolio-images',
         formData,
         { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
     );
@@ -160,7 +160,7 @@ export async function uploadIdentityDocument(
     });
 
     const response = await apiClient.post(
-        'category-search/provider/me/documents/',
+        '/category-search/provider/me/documents',
         formData,
         { headers: { ...headers, 'Content-Type': 'multipart/form-data' } }
     );
@@ -170,6 +170,6 @@ export async function uploadIdentityDocument(
 // ─── Existing public function  ─────────────────────────────────────
 
 export async function getProviderById(providerId: string): Promise<ProviderData> {
-    const response = await apiClient.get(`category-search/provider/${providerId}/`);
+    const response = await apiClient.get(`/category-search/provider/${providerId}`);
     return response.data;
 }

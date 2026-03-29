@@ -43,7 +43,7 @@ export const fetchProviderBookings = async (): Promise<ProviderBooking[]> => {
 
 
 export const completeBooking = async (bookingId: string): Promise<void> => {
-    await apiClient.patch(`/messaging/booking/${bookingId}/complete/`);
+    await apiClient.patch(`/messaging/booking/${bookingId}/complete`);
 };
 
 

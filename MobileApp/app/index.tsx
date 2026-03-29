@@ -32,7 +32,7 @@ const SplashScreen = () => {
           style={styles.container}
       >
         <View style={styles.textContainer}>
-          <Text style={styles.titleText}>FIND THE BEST.</Text>
+          <Text style={styles.titleText}>FIND THE BEST PROVIDER</Text>
           <Text style={styles.titleText}>FOR YOU.</Text>
         </View>
 
@@ -45,7 +45,7 @@ const SplashScreen = () => {
         </View>
 
         <View style={styles.footerContainer}>
-          <Text style={styles.footerText}>ALL RIGHT RESERVED. 2025</Text>
+          <Text style={styles.footerText}>ALL RIGHT RESERVED. 2026</Text>
           <Text style={styles.footerText}>PROVIDER+</Text>
         </View>
       </LinearGradient>
